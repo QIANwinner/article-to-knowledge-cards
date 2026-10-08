@@ -1,0 +1,7 @@
+interface:
+  display_name: "Make Knowledge Cards"
+  short_description: "把文章或本地 Markdown/TXT 转成知识卡片（上限 8 张，不编造、不凑数）"
+  default_prompt: "Use $make-knowledge-cards to turn this article into knowledge cards. Read the whole source first, select only disputable claims (plans and open questions are not cards), merge duplicates with the merge test, and keep at most 8. Each card needs a title, core knowledge, a plain explanation, and exactly one of a source-derived example or a self-test question; add a caveat field only when the source disagrees with itself. Never add facts, definitions, or figures the source does not contain, never pad the deck to hit a number, and carry any disclaimer in the source into the footer. If the source is thin, say so instead of inventing cards."
+
+policy:
+  allow_implicit_invocation: true

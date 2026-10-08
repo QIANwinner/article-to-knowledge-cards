@@ -1,0 +1,26 @@
+# 忽略 WorkBuddy 本地项目数据（含本地绝对路径与记忆文件，不应公开）
+.workbuddy/
+
+# 操作系统与编辑器垃圾文件
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.rej
+*.tmp
+*.log
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 打包产物
+dist/
+build
+*.zip
+*.apkg
