@@ -56,7 +56,7 @@ Then check two things before selecting anything:
 1. **Is there at least one disputable claim?** If the source is only plans and open questions, say so, produce no cards, and ask for material with actual content.
 2. **Does the source carry its own disclaimers?** Fiction markers ("this article is fictional"), "data as of" notices, "for reference only" lines, and sourcing notes must survive into the output. Do not drop them as scaffolding — a deck stripped of its disclaimer reads as fact.
 
-When a disclaimer exists, it applies to **every card that carries any figure from the source**, which is usually all of them. Put it in each such card's Caveat field as the caveat's first sentence, and repeat it verbatim in the footer's disclaimer line. Cards that carry no figures need only the footer line.
+When a disclaimer exists, it applies to **every card that carries any figure or named entity from the source**. Cards carrying only mechanism or terminology do not need it. Put it in each qualifying card's Caveat field as the caveat's first sentence, and repeat it verbatim in the footer's disclaimer line.
 
 ### Step 2: Survey before selecting
 
@@ -87,7 +87,15 @@ Rule 1 is a filter, rules 2 and 3 rank within what survives it. A candidate is *
 - They restate the same claim, even in different words.
 - One is meaningless without the other's sentence to make sense of it.
 
-Two candidates that **share a sentence but each carry a payload the other lacks** stay as two cards. Shared material may appear in both, unexpanded; each card states only its own payload. Examples of payloads that keep cards apart: a distinct figure, a distinct conclusion, a distinct mechanism step. If either card has no payload of its own after the split, they must merge.
+Two candidates that **share a sentence but each carry a payload the other lacks** stay as two cards. Shared material may appear in both, unexpanded; each card states only its own payload. If either card has no payload of its own after the split, they must merge.
+
+**The payload test.** Whether a payload is "independent enough" to justify its own card is decided by one question: **could a reader dispute this claim on its own, without also disputing the other?** Apply it in this order:
+
+1. If the second claim would be false whenever the first is false, they are one card. (A mechanism and its stated consequence are one card; a rule and its justification are one card.)
+2. If the second claim stands even if the first were removed, it is its own card. (Two independent reasons for the same conclusion are two cards; two different figures in one sentence are two cards.)
+3. A figure that only quantifies the first claim ("60% of the cache") stays inside the first card. It is a payload, not a separate card.
+
+A large ceiling does not relax this test. Splitting is warranted by the source, never by spare room.
 
 **Enumerations.** A list under one sentence ("three numbers decide...", "the causes are A, B, and C") splits into separate candidates — each item is independently disputable. Keep it as one card only when no item stands on its own without the others, such as a rule whose parts define each other.
 
@@ -95,10 +103,10 @@ Two candidates that **share a sentence but each carry a payload the other lacks*
 
 The ceiling is **128 cards total**. There is no floor and no quota. Count only the candidates that passed the Step 2 rules, then place them:
 
-- **128 or fewer strong candidates** — one card each, in a single deck. Nothing is omitted.
+- **128 or fewer strong candidates** — one card each, nothing omitted. How the deck is *delivered* depends on how many cards that is: see the table below.
 - **More than 128 strong candidates** — see long-source batching below.
 
-Then set the delivery shape, because a 100-card deck dumped into one reply is unreadable:
+Then set the delivery shape, because a 100-card deck dumped into one reply is unreadable. The thresholds below are exact, not approximate:
 
 | Total cards | Delivery |
 |---|---|
@@ -111,11 +119,9 @@ When batching, tell the reader up front how many cards the source yields and how
 **Long-source batching.** When a source yields more than 128 cards:
 
 1. Split at the source's own section boundaries first. A section that does not fit whole goes into the next batch at an internal topic boundary.
-2. Keep card numbering continuous across batches (`卡片 1 / Card 1` through `卡片 128 / Card 128`). Batches are transport, not separate decks.
+2. Keep card numbering continuous across batches (`卡片 1 / Card 1` through `卡片 128 / Card 128`). Batches are transport, not separate decks — the whole output is one deck that arrives in pieces.
 3. Deliver batches in order, and state after each batch which one comes next.
 4. After the final batch, emit the footer once.
-
-Never invent a card to reach a batch's shape, and never merge two batches to save a round trip. If the user asks for a single continuous deck and the total exceeds roughly 60 cards, still batch it — say why in one line, then batch.
 
 **0 candidates** — produce no cards. Say the source contains only plans or open questions and ask for material with actual content.
 
