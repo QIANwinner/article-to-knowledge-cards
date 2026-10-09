@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  engine:
+    name: 规则引擎与 Skill 自检
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 语法检查
+        run: |
+          node --check src/card-engine.js
+          node --check src/app.js
+          node --check scripts/serve.js
+          node --check scripts/check-skill.js
+
+      - name: 运行引擎测试
+        run: node scripts/test-engine.js
+
+      - name: Skill 结构自检
+        run: node scripts/check-skill.js

@@ -1,8 +1,14 @@
 # make-knowledge-cards
 
+[![CI](https://github.com/QIANwinner/article-to-knowledge-cards/actions/workflows/ci.yml/badge.svg)](https://github.com/QIANwinner/article-to-knowledge-cards/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/QIANwinner/article-to-knowledge-cards?display_name=tag)](https://github.com/QIANwinner/article-to-knowledge-cards/releases/latest)
+[![License](https://img.shields.io/github/license/QIANwinner/article-to-knowledge-cards?color=4b6bff)](LICENSE)
+
 把一篇文章或一个本地 Markdown / TXT 文件，转成**最多 128 张知识卡片**。每张卡片只讲一个知识点，附带标题、核心知识、简明解释，以及一个例子或一道自测题。
 
-这是一个 Agent Skill，只输出一份 Markdown 文本，没有界面、没有依赖、不联网。
+这是一个 Agent Skill，只输出一份 Markdown 文本，没有界面、没有依赖、不联网。仓库同时附带一个本地 GUI 与 2.5 MB 的 Windows 可执行文件。
+
+**English README**: [README.en.md](README.en.md) · **在线 Demo**: [qianwinner.github.io/article-to-knowledge-cards](https://qianwinner.github.io/article-to-knowledge-cards/)（浏览器直接用，无需下载）
 
 ---
 
@@ -135,42 +141,44 @@
 ### 个人级安装（所有项目可用）
 
 ```bash
-git clone <你的仓库地址>
-cp -r make-knowledge-cards/skills/make-knowledge-cards ~/.workbuddy/skills/
+git clone https://github.com/QIANwinner/article-to-knowledge-cards.git
+cp -r article-to-knowledge-cards/skills/make-knowledge-cards ~/.workbuddy/skills/
 ```
 
 Windows PowerShell：
 
 ```powershell
-git clone <你的仓库地址>
-Copy-Item -Recurse make-knowledge-cards\skills\make-knowledge-cards "$env:USERPROFILE\.workbuddy\skills\"
+git clone https://github.com/QIANwinner/article-to-knowledge-cards.git
+Copy-Item -Recurse article-to-knowledge-cards\skills\make-knowledge-cards "$env:USERPROFILE\.workbuddy\skills\"
 ```
 
 ### 项目级安装（随仓库分发，团队共享）
 
 ```bash
-cp -r make-knowledge-cards/skills/make-knowledge-cards <你的项目>/.workbuddy/skills/
+cp -r article-to-knowledge-cards/skills/make-knowledge-cards <你的项目>/.workbuddy/skills/
 ```
 
 ### 验证安装
 
 ```bash
-python <skill-creator路径>/scripts/quick_validate.py ~/.workbuddy/skills/make-knowledge-cards
+node scripts/check-skill.js
 ```
 
-输出 `Skill is valid!` 即安装成功。校验脚本随 WorkBuddy 内置的 `skill-creator` 提供，路径通常在应用资源目录下。
+输出 `结果：全部通过` 即安装成功。该脚本校验 frontmatter、命名规范、工作流完整性与关键约束章节。
 
 ### 前端界面（可选）
 
 前端界面**无需安装**，只要有 Node.js（≥ 18）即可：
 
 ```bash
-git clone <你的仓库地址>
+git clone https://github.com/QIANwinner/article-to-knowledge-cards.git
 cd article-to-knowledge-cards
 npm run serve        # 打开 http://127.0.0.1:5178
 ```
 
 不需要 `npm install` —— 前端零依赖运行。只有要打包 exe 时才需要装依赖。
+
+也可以直接用在线版（GitHub Pages，零构建）：<https://qianwinner.github.io/article-to-knowledge-cards/>
 
 ---
 
@@ -269,11 +277,16 @@ Skill 会自动读取文件、判断原文是否够格、筛选候选、去重�
 
 ```
 article-to-knowledge-cards/
-├── LICENSE# MIT
+├── LICENSE                    # MIT
 ├── README.md
+├── README.en.md                # 英文版说明
+├── CHANGELOG.md                # 变更记录
 ├── .gitignore
-├── package.json                           # 前端构建脚本
-├── src/                                   # 前端源码
+├── .github/workflows/
+│   ├── ci.yml                 # 引擎测试 + Skill 自检
+│   └── pages.yml               # 在线 Demo 部署（零构建，直接发布 src/）
+├── package.json                           # 前端脚本与版本号
+├── src/                                   # 前端源码，同时是在线 Demo 的发布目录
 │   ├── index.html                         # 双栏界面
 │   ├── styles.css                         # 深色研究风样式
 │   ├── card-engine.js                     # 卡片生成引擎（规则实现）
@@ -283,7 +296,8 @@ article-to-knowledge-cards/
 │   ├── Cargo.toml
 │   └── icons/                            # 应用图标（含 icon.ico）
 ├── scripts/
-│   ├── test-engine.js                     # 引擎规则测试（38 项断言）
+│   ├── test-engine.js                     # 引擎规则测试（61 项断言）
+│   ├── check-skill.js                     # Skill 结构自检
 │   ├── build-exe.sh                       # exe 打包脚本
 │   └── serve.js                           # 本地预览服务器
 ├── release/                               # 编译产物（exe，约 2.5 MB）
@@ -296,6 +310,8 @@ article-to-knowledge-cards/
 ```
 
 `.workbuddy/` 为本地开发数据（含个人路径），已通过 `.gitignore` 排除，不随仓库分发。
+
+`release/` 下只入库一份 `knowledge-cards.exe`。带版本号的副本（`knowledge-cards-v*-windows-x64.exe`）与它内容完全相同，只作为 GitHub Release 附件存在，不重复入库。
 
 ### 前端界面
 
@@ -314,29 +330,37 @@ article-to-knowledge-cards/
 | 粘贴文本 | 直接在输入框粘贴，支持 Markdown / TXT |
 | 选择文件 | 点「选择文件」载入 `.md` / `.markdown` / `.txt`，非支持格式会明确拒绝 |
 | 生成卡片 | 点「生成卡片」或按 `Ctrl+Enter` |
-| 复制 / 下载 | 导出为标准 Markdown，含 footer统计 |
+| 复制提示词 | 把 SKILL.md 的硬约束压成一段提示词连同来源一起复制到剪贴板，交给模型补语义解释 |
+| 复制 / 下载 | 导出为标准 Markdown，含 footer 统计与原文声明 |
 | 超过 60 张 | 自动按原文小节分批，编号跨批连续 |
 
 **规则引擎**：前端的 `card-engine.js` 实现了 SKILL.md 的硬约束——资格判定（待办、计划、预测、未决问题不做卡）、单卡单知识点、重复合并、可溯源（卡片内容必须能逐字回溯原文）、不凑数（原文支持几张就出几张）。
 
-需要说明的是：引擎负责**结构化抽取与规则筛选**，不含 LLM。语义层的取舍（原文哪句值得成卡）仍由 Skill 或模型完成。
+引擎对「解释」与「口径提示」的处理规则值得单独说明，因为这两项最容易变成填充：
+
+| 字段 | 取源顺序 | 引不到时 |
+|---|---|---|
+| 简明解释 | ① 候选内部的因果子句 → ② 原文相邻句（带机制标志，或同段里本身不成卡的承接句） | 写明「原文未提供」，卡片上打橙色徽章，并在footer 记账。**绝不用固定模板句填充** |
+| 口径提示 | ① 原文自带的免责声明（逐字）→ ② 相邻句里的口径限定 → ③ 紧邻的转折句 | 整行省略，不写「无」 |
+
+规则引擎只搬运**有原文证据**的内容。语义级的矛盾（同一指标两个互斥数值、却没有任何标志词）规则引擎不判定，也不猜——那一层交给 Skill 或模型。界面上「复制提示词」就是这条分工的出口：引擎负责结构化与硬约束，模型负责语义。
 
 **本地预览**（不打包也能看界面）：
 
 ```bash
-npm install
 npm run serve        # 打开 http://127.0.0.1:5178
 ```
 
 ### 运行引擎测试
 
 ```bash
-npm run test:engine       # 38 项规则符合性断言
+npm test              # 引擎测试 + Skill 结构自检
+npm run test:engine   # 只跑引擎规则断言
 ```
 
-前端零依赖运行，`serve` 与 `test:engine` 只需 Node.js，**不需要 `npm install`**。
+前端零依赖运行，`serve` / `test:engine` / `check:skill` 只需 Node.js，**不需要 `npm install`**。
 
-覆盖 4 类样本 × 8 项约束，外加「不凑数行为」与「边界处理」专项 —— 纯计划内容必须输出 0 张，超长输入必须仍 ≤ 128 张。
+覆盖 4 类样本 × 13 项约束，外加「不凑数行为」「原文声明保留」「文本拼接」与「边界处理」四个专项，共 61 项断言 —— 纯计划内容必须输出 0 张，超长输入必须仍 ≤ 128 张，带数字的卡片必须带原文声明。GitHub Actions 会在每次推送与 PR 上跑同一套断言。
 
 ---
 
@@ -422,10 +446,17 @@ RUSTFLAGS="--cfg has_std" cargo build --release
 ## 8. 本地校验
 
 ```bash
-python <skill-creator路径>/scripts/quick_validate.py skills/make-knowledge-cards
+npm test                  # 引擎 61 项断言 + Skill 结构自检
+npm run check:skill       # 只跑 Skill 结构自检
 ```
 
-输出 `Skill is valid!` 即通过。该脚本校验 frontmatter 格式、命名规范、目录结构与 description 完整性。
+`check-skill` 校验 frontmatter、命名规范、六步工作流完整性、以及 `Anti-Fabrication Rules` 与 128 上限等关键约束是否仍在文档里。这一项已接入 GitHub Actions，Skill 被改坏时会直接让 CI 失败。
+
+---
+
+## 变更记录
+
+见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
@@ -451,22 +482,24 @@ python <skill-creator路径>/scripts/quick_validate.py skills/make-knowledge-car
 
 | 样本 | 类型 | Skill 侧验证点 | 引擎输出 |
 |---|---|---|---|
-| `01-tech-cache.md` | 英文技术文 | 四级 tie-break、省略说明 | 9 张 |
-| `02-news-foldable-cn.md` | 中文长分析文 | 重复论述去重、口径不一致标注、虚构声明保留 | 10 张 |
-| `03-thin-notes.txt` | 极简短笔记 | 只出 2 张卡且不凑数、待办与未决事项不制卡 | 1 张 |
-| `04-rust-ownership.md` | 技术讲义 | 代码块与编译器报错的落位、术语兜底边界 | 6 张 |
+| `01-tech-cache.md` | 英文技术文 | 四级 tie-break、省省略说明 | 14 张（口径提示 9，解释缺口 8） |
+| `02-news-foldable-cn.md` | 中文长分析文 | 重复论述去重、口径不一致标注、虚构声明保留 | 22 张（口径提示 13，声明 2 段全部落位） |
+| `03-thin-notes.txt` | 极简短笔记 | 只出 2 张卡且不凑数、待办与未决事项不制卡 | 2 张（与 Skill 侧一致） |
+| `04-rust-ownership.md` | 技术讲义 | 代码块与编译器报错的落位、术语兜底边界 | 11 张（口径提示 7） |
 
 > ⚠️ **所有样本均为虚构测试数据**，标题、数字、厂商与结论均不对应任何真实企业、产品或市场判断，仅用于检验 Skill 行为。每个样本文件头部都写明了这一点。
 
 ### 规则引擎测试
 
-`npm run test:engine` 跑 **38 项断言**，覆盖：
+`npm test` 跑 **61 项断言**，覆盖：
 
-- **8 项硬约束** × 4 类样本：卡片数上限、编号连续、无多句熔合、内容可溯源、字段齐全、例子与自测二选一、计划类内容不成卡、无占位符残留
+- **13 项硬约束** × 4 类样本：卡片数上限、编号连续、无多句熔合、内容可溯源（核心知识/标题/口径提示/被引用的解释）、字段齐全、例子与自测二选一、计划类内容既不成卡也不混入其他卡、无占位符残留、标题与正文同源、解释字段不是模板句、解释来源标注正确、解释不是核心知识的复制、口径提示非空时必有原文依据
 - **不凑数行为**：纯计划内容必须输出 0 张；极简样本不超过 3 张
+- **原文声明保留**：三份带声明的样本，声明必须被识别并落到带数字卡片的口径提示
+- **文本拼接**：英文句号后不粘连，中文换行处不插入多余空格
 - **边界处理**：空输入、纯空白、超长输入（400 段）
 
-测试过程中发现并修复了 4 个真实缺陷：
+测试过程中发现并修复了 8 个真实缺陷：
 
 | 缺陷 | 症状 | 根因 |
 |---|---|---|
@@ -474,8 +507,26 @@ python <skill-creator路径>/scripts/quick_validate.py skills/make-knowledge-car
 | 溯源断裂 | 卡片内容无法逐字回溯原文 | 清理 Markdown 时删除了 `**`，改变了字符序列 |
 | 多句熔合 | 单卡含 6 句 | 段落切分只按空行，未按句号上限切 |
 | 长输入退化 | 400 段输入只出 1 张 | 上述去重缺陷的连带影响 |
+| 解释注水 | 所有卡片的解释是同一句模板 | 无因果连接词时走 `else` 分支填固定文案 |
+| 标题错位 | 标题讲成本压力，正文讲耐用性投诉 | `core` 是跨候选拼接的结果，标题取了上一段残句 |
+| 口径提示空转 | 前端有渲染与导出分支，引擎从不赋值 | 引擎缺声明/口径/转折三类证据的搬运逻辑 |
+| 计划句混入 | 卡片正文里出现「下周把日志清理脚本…」 | 计划句未被当作切分硬边界，只在候选开头做过一次判定 |
+
+后四项是 v0.1.4 的修复，同时把断言从 38 项扩到 61 项——旧断言全绿并不代表输出正确，「解释是模板句」这件事没有任何一条断言能拦住。
 
 Skill 说明书经过三轮迭代：每轮用子代理按 `SKILL.md` 实际跑全部样本，收集「哪里需要执行者自己猜」的报告，据此修补说明书规则。第一轮补入资格判定表、Caveat 字段、术语规则、派生数字规则、声明保留规则；第二轮补入 tie-break 裁决、artifact 落位顺序、footer 可选字段；第三轮补入枚举拆分规则、声明落位、术语判定阈值。
+
+---
+
+## 11. 已知边界
+
+规则引擎做的是结构化抽取与规则筛选，它的能力有明确上限，以下三类需要交给模型而不是继续给引擎加正则：
+
+| 情况 | 引擎现状 |
+|---|---|
+| 原文没有解释句 | 标注「原文未提供」并打徽章，不编造。语义解释靠「复制提示词」交给模型 |
+| 语义级矛盾 | 同一指标两个互斥数值且无任何标志词时，引擎不标口径提示（宁可少标，不凭空造冲突） |
+| 代码块落位 | 引擎把代码块从候选中跳过，SKILL.md 规定的「代码进Example、报错进核心知识」由模型执行 |
 
 ---
 

@@ -343,6 +343,34 @@ body {
 .field { margin-bottom: 10px; }
 .field:last-child { margin-bottom: 0; }
 
+.field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.field-head .field-label { margin-bottom: 0; }
+
+/* 解释来源徽章：让「这句解释是引来的还是原文没写」一眼可见 */
+.field-tag {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0.3px;
+  color: var(--text-faint);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.field-tag.is-gap {
+  color: var(--warn);
+  background: rgba(245, 165, 36, 0.08);
+  border-color: rgba(245, 165, 36, 0.3);
+}
+
 .field-label {
   display: block;
   font-size: 10.5px;

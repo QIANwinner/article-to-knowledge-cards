@@ -1,11 +1,13 @@
 {
-  "name": "article-to-knowledge-cards-gui",
-  "version": "0.1.3",
+  "name": "article-to-knowledge-cards",
+  "version": "0.1.4",
   "private": true,
-  "description": "文章转知识卡片 — 本地 GUI 前端",
+  "description": "文章转知识卡片 — 本地 GUI 前端（Tauri 2 + 原生 JS，零前端依赖）",
   "scripts": {
     "serve": "node scripts/serve.js",
     "test:engine": "node scripts/test-engine.js",
+    "check:skill": "node scripts/check-skill.js",
+    "test": "node scripts/test-engine.js && node scripts/check-skill.js",
     "build:exe": "bash scripts/build-exe.sh",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build --no-bundle"

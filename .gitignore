@@ -39,3 +39,8 @@ build
 !release/
 !release/*.exe
 !release/*.md
+
+# 带版本号的 exe 只作为 Release 附件，不入库——
+# 它与 knowledge-cards.exe 是同一个二进制，入库等于存两份。
+# 必须放在上面的 ! 规则之后，靠「最后匹配规则生效」覆盖回来。
+release/knowledge-cards-v*-windows-x64.exe

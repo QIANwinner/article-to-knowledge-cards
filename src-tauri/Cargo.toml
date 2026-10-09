@@ -35,7 +35,7 @@
 
 [package]
 name = "knowledge-cards"
-version = "0.1.3"
+version = "0.1.4"
 description = "把文章或本地 Markdown/TXT 转成知识卡片"
 authors = ["QIAN"]
 edition = "2021"

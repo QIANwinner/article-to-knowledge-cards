@@ -38,7 +38,13 @@ if ! command -v link.exe >/dev/null 2>&1 && [ ! -f "/c/Program Files (x86)/Micro
   exit 1
 fi
 
-echo "[1/3] cargo build --release（首次约 10-25 分钟，之后约 1-2 分钟）..."
+echo "[1/4] 读取版本号..."
+cd "$ROOT"
+VERSION="$(node -p "require('./package.json').version")"
+echo "  package.json 版本：$VERSION"
+
+echo ""
+echo "[2/4] cargo build --release（首次约 10-25 分钟，之后约 1-2 分钟）..."
 cd "$ROOT/src-tauri"
 cargo build --release 2>&1 | tail -8
 
@@ -46,10 +52,11 @@ EXE="target/release/knowledge-cards.exe"
 [ -f "$EXE" ] || { echo "[x] 编译失败，未产出 exe"; exit 1; }
 
 echo ""
-echo "[2/3] 收集产物..."
+echo "[3/4] 收集产物..."
 mkdir -p "$ROOT/release"
 cp "$EXE" "$ROOT/release/knowledge-cards.exe"
-cp "$EXE" "$ROOT/release/knowledge-cards-v0.1.3-portable.exe"
+# 带版本号的副本只作为 Release 附件，不入库（仓库里不重复存二进制）
+cp "$EXE" "$ROOT/release/knowledge-cards-v${VERSION}-windows-x64.exe"
 
 SIZE=$(wc -c < "$ROOT/release/knowledge-cards.exe")
 MB=$("$PY" -c "print(f'{$SIZE/1024/1024:.2f}')")
@@ -58,14 +65,15 @@ echo ""
 echo "=============================================="
 echo " 构建完成"
 echo "=============================================="
-echo "  产物    : release/knowledge-cards.exe"
+echo "  入库    : release/knowledge-cards.exe"
+echo "  Release : release/knowledge-cards-v${VERSION}-windows-x64.exe"
 echo "  大小    : $MB MB"
 echo ""
 echo "  直接双击运行，无需安装。"
 echo "=============================================="
 echo ""
 
-echo "[3/3] 校验 gitignore..."
+echo "[4/4] 校验 gitignore..."
 cd "$ROOT"
 if git check-ignore -q release/knowledge-cards.exe 2>/dev/null; then
   echo "  [!] 被 .gitignore 排除，需检查规则"

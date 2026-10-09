@@ -15,6 +15,7 @@
     fileInput: $('file-input'),
     btnClear: $('btn-clear'),
     btnGenerate: $('btn-generate'),
+    btnPrompt: $('btn-prompt'),
     genHint: $('gen-hint'),
     errorSlot: $('error-slot'),
     deck: $('deck'),
@@ -28,7 +29,8 @@
     sourceText: '',
     sourceName: '',
     cards: [],
-    stats: null
+    stats: null,
+    disclaimers: []
   };
 
   const BATCH_THRESHOLD = 25;
@@ -88,7 +90,7 @@
 
   el.btnClear.addEventListener('click', () => {
     el.source.value = '';
-    state = { sourceText: '', sourceName: '', cards: [], stats: null };
+    state = { sourceText: '', sourceName: '', cards: [], stats: null, disclaimers: [] };
     el.sourceLabel.textContent = '未选择来源';
     el.fileInput.value = '';
     updateCharCount();
@@ -117,9 +119,10 @@
     // 让按钮态先渲染，再跑计算
     setTimeout(() => {
       try {
-        const { cards, stats } = Engine.generate(text);
+        const { cards, stats, disclaimers } = Engine.generate(text);
         state.cards = cards;
         state.stats = stats;
+        state.disclaimers = disclaimers || [];
         render(cards, stats);
         el.btnCopy.disabled = cards.length === 0;
         el.btnDownload.disabled = cards.length === 0;
@@ -215,13 +218,18 @@
 
   function statsBlock(stats) {
     if (!stats) return document.createDocumentComment('');
+    const produced = stats.qualified - stats.merged - stats.overCeiling;
     const d = document.createElement('div');
     d.className = 'engine-stats';
     d.innerHTML =
       `<b>引擎处理</b>：原文 ${stats.sections} 小节 → ${stats.candidates} 候选` +
-      ` → ${stats.qualified} 通过资格判定 → 合并重复 ${stats.merged} → ${stats.candidates - stats.rejected - stats.merged} 张卡片` +
+      ` → ${stats.qualified} 通过资格判定 → 合并重复 ${stats.merged} → ${produced} 张卡片` +
       (stats.overCeiling ? `（超上限省略 ${stats.overCeiling}）` : '') +
-      ` · ${stats.elapsed}ms`;
+      ` · ${stats.elapsed}ms` +
+      `<br><b>保真</b>：口径提示 ${stats.caveats} 张` +
+      ` · 解释取自原文 ${produced - stats.plainGaps} 张` +
+      ` · 原文未提供解释 ${stats.plainGaps} 张` +
+      (stats.disclaimers ? ` · 原文声明 ${stats.disclaimers} 段已保留` : ' · 原文无免责声明');
     return d;
   }
 
@@ -232,6 +240,7 @@
     const hasCaveat = card.caveat && card.caveat.trim();
     const mergedNote =
       card.mergedFrom > 1 ? ` · 合并 ${card.mergedFrom} 处重复论述` : '';
+    const tagClass = card.plainGap ? 'field-tag is-gap' : 'field-tag';
 
     div.innerHTML = `
       <div class="card-head">
@@ -244,7 +253,10 @@
         <p class="field-body">${escapeHtml(card.core)}</p>
       </div>
       <div class="field">
-        <span class="field-label">简明解释 / Plain explanation</span>
+        <div class="field-head">
+          <span class="field-label">简明解释 / Plain explanation</span>
+          <span class="${tagClass}">${escapeHtml(card.plainSource || '原文未提供')}</span>
+        </div>
         <p class="field-body">${escapeHtml(card.plain)}</p>
       </div>
       ${hasCaveat ? `
@@ -296,6 +308,7 @@
       lines.push('');
       lines.push('**简明解释 / Plain explanation**');
       lines.push(c.plain);
+      lines.push(`_解释来源：${c.plainSource || '原文未提供'}_`);
       lines.push('');
       if (c.caveat && c.caveat.trim()) {
         lines.push('**口径提示 / Caveat**');
@@ -316,10 +329,73 @@
     if (state.stats && state.stats.merged) {
       lines.push(`**去重 / Deduplicated**: 合并 ${state.stats.merged} 处重复论述`);
     }
+    if (state.disclaimers && state.disclaimers.length) {
+      lines.push(`**来源声明 / Source disclaimer**: ${state.disclaimers.join(' ')}`);
+    }
+    if (state.stats && state.stats.plainGaps) {
+      lines.push(
+        `**解释缺口 / Gaps**: ${state.stats.plainGaps} 张卡片的解释在原文中没有可引用的推导，已逐张标注「原文未提供」`
+      );
+    }
     lines.push('');
     lines.push('> 由 article-to-knowledge-cards 本地生成 · 规则引擎版');
     return lines.join('\n');
   }
+
+  /* ---------- 提示词 ---------- */
+
+  // 规则引擎只做结构化抽取，语义层的取舍交给模型。
+  // 这条通路把 SKILL.md 的硬约束压成一段可直接投喂的提示词。
+  const PROMPT_RULES = [
+    '规则（必须逐条遵守）：',
+    '1. 先读完整篇原文再选卡，不要从局部读到的内容里挑。',
+    '2. 只有「能被原文反驳」的断言才可成卡：事实、机制、规则、结论、数字。',
+    '   计划、待办、预测、未决问题不做卡，但要在 footer 的「未收录」行写明为什么没做。',
+    '3. 不引入原文之外的信息：不补教科书定义、不补真实统计数字、不补原文没提的名字与机构。',
+    '4. 例子只能来自原文，或是原文数字的显式算式（写出算式）。否则改出自测题。',
+    '5. 一张卡一个知识点。同一主张的不同表述合并成一张；共享一句原文但各自带不同数字或结论的，分开成卡。',
+    '6. 原文的免责声明、虚构标记、数据时效声明必须逐字带到footer，并重复进带数字卡片的「口径提示」。',
+    '7. 原文自相矛盾时保留冲突并标注，不要替原文和稀泥。',
+    '8. 卡片总数上限 128，没有下限也没有指标：原文支持几张就出几张，绝不凑数，也绝不把一个知识点拆成两张。',
+    '输出：Markdown 渲染文本（不要代码块围栏），每张卡依次为',
+    '「### 卡片 N / Card N. 标题」「**核心知识 / Core knowledge**」「**简明解释 / Plain explanation**」',
+    '「**口径提示 / Caveat**」（仅在需要时出现）「**例子 / Example**」或「**自测题 / Self-test**」（二选一）。',
+    '最后跟一个不超过四行的 footer：卡片数、来源、未收录、来源声明。'
+  ].join('\n');
+
+  function buildPrompt() {
+    const text = el.source.value.trim();
+    const head = [
+      '用 make-knowledge-cards 把下面这份材料转成知识卡片。',
+      state.sourceName
+        ? `来源文件：${state.sourceName}（请先完整读取该文件）`
+        : '来源：下方粘贴的文本',
+      '',
+      PROMPT_RULES
+    ].join('\n');
+
+    if (state.sourceName || !text) return head;
+    if (text.length > 3000) {
+      return `${head}\n\n正文（${text.length} 字符，超过 3000，请分批粘贴并保持编号连续）：\n${text.slice(0, 3000)}\n……（其余部分我会继续粘贴）`;
+    }
+    return `${head}\n\n正文：\n${text}`;
+  }
+
+  el.btnPrompt.addEventListener('click', async () => {
+    const text = el.source.value.trim();
+    if (!text && !state.sourceName) {
+      showError('请先粘贴文章或选择文件，提示词需要带上来源。');
+      return;
+    }
+    const prompt = buildPrompt();
+    try {
+      await navigator.clipboard.writeText(prompt);
+      flash(el.btnPrompt, '提示词已复制');
+      showError('');
+    } catch (e) {
+      showError('剪贴板不可用，请手动选取。');
+    }
+  });
 
   el.btnCopy.addEventListener('click', async () => {
     const md = toMarkdown();
@@ -369,8 +445,8 @@
   updateCharCount();
   renderEmpty();
 
-  // Tauri 环境暴露给后端
+  // Tauri 环境暴露给后端（用 getter，state 会被整体替换，持有引用会失效）
   if (typeof window !== 'undefined') {
-    window.__app = { state, Engine };
+    window.__app = { get state() { return state; }, Engine };
   }
 })();

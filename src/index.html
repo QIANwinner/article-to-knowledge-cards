@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>文章转知识卡片</title>
+<meta name="description" content="把文章或本地 Markdown / TXT 转成知识卡片。本地运行，不联网，不编造原文没有的信息。" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234b6bff'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'%3E%3Crect x='7' y='8' width='12' height='16' rx='2'/%3E%3Cpath d='M21 12h4M21 18h4M21 24h4'/%3E%3C/g%3E%3C/svg%3E" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -44,6 +46,9 @@
       <div class="generate-row">
         <button class="btn btn-primary" id="btn-generate" type="button">
           生成卡片
+        </button>
+        <button class="btn btn-ghost" id="btn-prompt" type="button" title="复制一段可直接投喂模型的提示词，由模型补齐语义解释">
+          复制提示词
         </button>
         <div class="generate-hint" id="gen-hint">
           每张卡一个知识点，不编造原文没有的信息
@@ -91,6 +96,8 @@
     <span>本地运行 · 原文不会离开这台机器</span>
     <span class="dot">·</span>
     <a href="https://github.com/QIANwinner/article-to-knowledge-cards" target="_blank" rel="noopener">源码</a>
+    <span class="dot">·</span>
+    <a href="https://github.com/QIANwinner/article-to-knowledge-cards/releases" target="_blank" rel="noopener">下载 exe</a>
     <span class="dot">·</span>
     <span>MIT License</span>
   </footer>
