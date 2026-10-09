@@ -1,6 +1,6 @@
 ---
 name: make-knowledge-cards
-description: Convert a pasted article or a local Markdown/TXT file into at most 8 knowledge cards, each carrying exactly one idea with a title, the core knowledge, a plain explanation, and either a concrete example drawn from the source or a self-test question. This skill should be used when the user asks to turn an article, blog post, report, documentation, or reading notes into knowledge cards, flashcards, 知识卡片, 读书卡片, or asks to "make cards out of this article", "做成一组卡片", "生成知识卡". Applies to text pasted in the conversation and to .md or .txt files on disk. It does not fetch web pages, does not process PDF or office documents, does not export to Anki, and does not build graphical interfaces.
+description: Convert a pasted article or a local Markdown/TXT file into up to 128 knowledge cards, each carrying exactly one idea with a title, the core knowledge, a plain explanation, and either a concrete example drawn from the source or a self-test question. This skill should be used when the user asks to turn an article, blog post, report, documentation, or reading notes into knowledge cards, flashcards, 知识卡片, 读书卡片, or asks to "make cards out of this article", "做成一组卡片", "生成知识卡". Applies to text pasted in the conversation and to .md or .txt files on disk. Long sources are split into themed batches so no single reply is overwhelming. It does not fetch web pages, does not process PDF or office documents, does not export to Anki, and does not build graphical interfaces.
 ---
 
 # Make Knowledge Cards
@@ -9,7 +9,7 @@ description: Convert a pasted article or a local Markdown/TXT file into at most 
 
 Turn one source text into a small deck of knowledge cards. Each card carries exactly one idea, states only what the source supports, and is self-verifying through an example or a self-test question.
 
-The hard part is not formatting. It is selection: deciding what is worth remembering, and refusing to invent what the source does not contain. **The deck length follows the source.** A rich article yields 5 to 8 cards; a thin note may yield 2. Never add a card to make the deck look complete.
+The hard part is not formatting. It is selection: deciding what is worth remembering, and refusing to invent what the source does not contain. **The deck length follows the source.** A long chapter may fill 128 cards; a short note may yield 2. Never add a card to make the deck look complete, and never split one idea to fill a quota.
 
 ## Scope
 
@@ -91,14 +91,33 @@ Two candidates that **share a sentence but each carry a payload the other lacks*
 
 **Enumerations.** A list under one sentence ("three numbers decide...", "the causes are A, B, and C") splits into separate candidates — each item is independently disputable. Keep it as one card only when no item stands on its own without the others, such as a rule whose parts define each other.
 
-### Step 3: Set the card count
+### Step 3: Set the card count and batching
 
-The ceiling is 8. There is no floor and no quota. Count only the candidates that passed the Step 2 rules, and pick the number the source supports:
+The ceiling is **128 cards total**. There is no floor and no quota. Count only the candidates that passed the Step 2 rules, then place them:
 
-- **8 or more strong candidates** — keep the best 8 using the Step 2 tie-break order, and name the omitted ideas in the footer.
-- **4 to 7 strong candidates** — one card each, no comment needed.
-- **1 to 3 strong candidates** — one card each, plus a footer note that the source is thin and the deck is short by necessity.
-- **0 candidates** — produce no cards. Say the source contains only plans or open questions and ask for material with actual content.
+- **128 or fewer strong candidates** — one card each, in a single deck. Nothing is omitted.
+- **More than 128 strong candidates** — see long-source batching below.
+
+Then set the delivery shape, because a 100-card deck dumped into one reply is unreadable:
+
+| Total cards | Delivery |
+|---|---|
+| 1 to 25 | One deck, no batching |
+| 26 to 60 | One deck, but grouped under the source's own section headings |
+| 61 to 128 | **Themed batches.** Split by the source's own sections or topic boundaries, deliver each batch as its own titled group with continuous card numbering across batches |
+
+When batching, tell the reader up front how many cards the source yields and how many batches to expect, then deliver the batches in source order. Never truncate a batch to save space — finish the current batch and continue in the next reply if the user keeps reading.
+
+**Long-source batching.** When a source yields more than 128 cards:
+
+1. Split at the source's own section boundaries first. A section that does not fit whole goes into the next batch at an internal topic boundary.
+2. Keep card numbering continuous across batches (`卡片 1 / Card 1` through `卡片 128 / Card 128`). Batches are transport, not separate decks.
+3. Deliver batches in order, and state after each batch which one comes next.
+4. After the final batch, emit the footer once.
+
+Never invent a card to reach a batch's shape, and never merge two batches to save a round trip. If the user asks for a single continuous deck and the total exceeds roughly 60 cards, still batch it — say why in one line, then batch.
+
+**0 candidates** — produce no cards. Say the source contains only plans or open questions and ask for material with actual content.
 
 Never invent a card to reach any number. A fabricated card is a worse failure than a short deck.
 
@@ -159,7 +178,7 @@ The source often does not define its own jargon. The test for whether a word is 
 
 Readability is judged as "the reader can follow what this claim is doing," not "the reader could pass an exam on the jargon."
 
-**Quoting figures from an omitted candidate.** A candidate dropped for the 8-card ceiling may still have its figures quoted inside another card's explanation, under the same rules as any other source material — stated inline, not expanded, and never as a derived calculation. This is how a merged or trimmed idea still reaches the reader.
+**Quoting figures from a merged or deferred candidate.** A candidate that got merged away may still have its figures quoted inside another card's explanation, under the same rules as any other source material — stated inline, not expanded, and never as a derived calculation. This is how a merged idea still reaches the reader. The same applies to a candidate deferred to a later batch: quote it where it belongs, not early in whichever batch happens to come first.
 
 **Derived figures**
 
@@ -183,8 +202,11 @@ Before delivering, check each card against these. Any "no" means rewrite or cut 
 6. Does the Example or the self-test answer point back into this same card?
 7. Did any term get a definition the source does not supply?
 8. Did the source's disclaimer survive into the output?
+9. If the deck is batched, is every batch present with continuous numbering and no duplicates across batches?
 
 **Cutting a card.** When the core knowledge survives but the plain explanation cannot be written without inventing facts, do not pad and do not fabricate. Cut the card and lower the count, then note it in the footer. A deck of 4 honest cards beats a deck of 6 with 2 invented explanations.
+
+**Checking a long deck.** For decks over 25 cards, do not rely on a single read-through. Verify in this order: count the cards (the numbering must be continuous and match the stated total), scan for duplicate claims across batches, then spot-check every card against items 1 and 2 above. A single sweep misses things at this length.
 
 This check is an internal step. Do not show it to the user unless they ask.
 
@@ -198,14 +220,14 @@ Follow with a footer of at most four lines:
 ---
 **卡片数 / Cards**: N
 **来源 / Source**: <file name or "pasted text">
-**未收录 / Omitted**: <ideas dropped as duplicates, and ideas dropped because the count hit 8 — name them; write "无" only when nothing was dropped at all>
+**未收录 / Omitted**: <ideas dropped as duplicates, and ideas deferred past the 128-card ceiling — name them; write "无" only when nothing was dropped at all>
 **来源声明 / Source disclaimer**: <verbatim disclaimer — this line is included only when the source carries one, and is omitted entirely otherwise>
 ```
 
-Write the footer in the card language. Omit the disclaimer line when there is no disclaimer; do not write 无. When the source is thin, say so in the `未收录` line. Distinguish the two omission reasons when both apply:
+Write the footer in the card language. Omit the disclaimer line when there is no disclaimer; do not write 无. When the source is thin, say so in the `未收录` line. When the deck is batched, state the batch index in the `卡片数` line (`卡片数 / Cards`: 32 of 128, batch 2/4). Distinguish the two omission reasons when both apply:
 
 ```
-**未收录 / Omitted**: 合并——C 与 D 讲同一机制，保留 C。超上限——E、F 未收录，因为候选超过 8 张。
+**未收录 / Omitted**: 合并——C 与 D 讲同一机制，保留 C。超上限——E、F 未收录，因为候选超过 128 张。
 ```
 
 ## Anti-Fabrication Rules
@@ -231,6 +253,7 @@ Match the source's language: a Chinese source produces Chinese cards, an English
 |---|---|---|
 | 8 cards, all vague | Vague candidates selected | Re-select from the Step 2 candidate list |
 | Two cards covering one idea | Splitting happened before merging | Apply the merge test |
+| One idea split across two cards to reach a number | The ceiling was treated as a target | Merge them; the ceiling never justifies a split |
 | Examples with numbers absent from the source | A plausible case was invented | Delete it; use a self-test instead |
 | Core knowledge is a specific number the source never states | A figure was extrapolated | Delete it, or show the calculation over source figures |
 | Explanation restates the core knowledge | Paraphrase written instead of unpacking | Explain the mechanism or ground the term |
@@ -239,5 +262,6 @@ Match the source's language: a Chinese source produces Chinese cards, an English
 | "The author argues that..." framing | Scaffolding leaked in | State the knowledge directly |
 | Plans and open questions became cards | Eligibility table ignored | Move them to the footer's Omitted line |
 | Padding to reach a target number | Count treated as a quota | Cut to the real count and note it |
+| One 100-card reply | The batching rule was skipped | Split at the source's section boundaries |
 | Disclaimer dropped as scaffolding | Step 1 check skipped | Carry it into the footer verbatim |
 | Disagreement silently resolved | Caveat field skipped | Keep both, flag in the Caveat field |
