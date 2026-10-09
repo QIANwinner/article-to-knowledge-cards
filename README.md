@@ -123,9 +123,11 @@
 | 网页抓取 | 不联网、不解析 URL，请直接粘贴正文 |
 | PDF / Word / Excel / PPT | 仅支持粘贴的文本与本地 `.md` / `.txt` |
 | 导出 Anki | 不生成 `.apkg` 或导入用CSV |
-| 图形界面 | 只输出 Markdown 文本 |
+| Windows exe 打包 | 受 Tauri 2.x 与 Rust 1.99 的兼容问题阻塞，见 §9 已知问题。前端界面本身可用 |
 
 遇到这几类输入时，Skill 会说明哪部分不被支持，并请你粘贴正文或指向 Markdown / TXT 文件，不会自己找变通办法。
+
+> 图形界面**已经实现**（`src/` 目录，浏览器直接可用），只是暂未产出 Windows 可执行文件。
 
 ---
 
@@ -160,6 +162,18 @@ python <skill-creator路径>/scripts/quick_validate.py ~/.workbuddy/skills/make-
 ```
 
 输出 `Skill is valid!` 即安装成功。校验脚本随 WorkBuddy 内置的 `skill-creator` 提供，路径通常在应用资源目录下。
+
+### 前端界面（可选）
+
+前端界面**无需安装**，只要有 Node.js（≥ 18）即可：
+
+```bash
+git clone <你的仓库地址>
+cd article-to-knowledge-cards
+npm run serve        # 打开 http://127.0.0.1:5178
+```
+
+不需要 `npm install` —— 前端零依赖运行。只有要打包 exe 时才需要装依赖。
 
 ---
 
@@ -257,19 +271,159 @@ Skill 会自动读取文件、判断原文是否够格、筛选候选、去重�
 ## 7. 项目结构
 
 ```
-make-knowledge-cards/
-├── LICENSE                              # MIT
+article-to-knowledge-cards/
+├── LICENSE# MIT
 ├── README.md
 ├── .gitignore
+├── package.json                           # 前端构建脚本
+├── src/                                   # 前端源码
+│   ├── index.html                         # 双栏界面
+│   ├── styles.css                         # 深色研究风样式
+│   ├── card-engine.js                     # 卡片生成引擎（规则实现）
+│   └── app.js                             # UI 交互层
+├── src-tauri/                            # Tauri 壳（Rust），配置就绪但当前无法编译，见 §8
+│   ├── tauri.conf.json                   # 窗口与打包配置
+│   ├── Cargo.toml
+│   └── icons/                            # 应用图标
+├── scripts/
+│   ├── test-engine.js                     # 引擎规则测试（38 项断言）
+│   └── serve.js                           # 本地预览服务器
 ├── skills/make-knowledge-cards/
-│   ├── SKILL.md                         # Skill 正文：判定规则 + 6 步工作流 + 卡片模板
+│   ├── SKILL.md                          # Skill 正文：判定规则 + 6 步工作流 + 卡片模板
 │   └── agents/
-│       └── openai.yaml                  # Skill 接口声明
+│       └── openai.yaml                   # Skill 接口声明
 └── tests/
-    └── samples/                         # 测试样本，虚构数据
+    └── samples/                          # 测试样本，虚构数据
 ```
 
 `.workbuddy/` 为本地开发数据（含个人路径），已通过 `.gitignore` 排除，不随仓库分发。
+
+### 前端界面
+
+仓库附带一个本地 GUI，把文章转成知识卡片。文章只在本机处理，不联网。
+
+**技术栈**：原生 HTML + CSS + JavaScript（零前端框架、零构建步骤）+ Tauri 2 壳
+
+选原生 JS 而非 React，是因为这个界面只做三件事——文本输入、卡片渲染、Markdown 导出，引入 Vite + React 会多出几百个 `node_modules` 和一层构建复杂度，对这个规模是纯负担。
+
+**界面结构**：左右双栏。左侧粘贴原文或选文件，右侧实时渲染卡片。
+
+**核心交互**：
+
+| 操作 | 说明 |
+|---|---|
+| 粘贴文本 | 直接在输入框粘贴，支持 Markdown / TXT |
+| 选择文件 | 点「选择文件」载入 `.md` / `.markdown` / `.txt`，非支持格式会明确拒绝 |
+| 生成卡片 | 点「生成卡片」或按 `Ctrl+Enter` |
+| 复制 / 下载 | 导出为标准 Markdown，含 footer统计 |
+| 超过 60 张 | 自动按原文小节分批，编号跨批连续 |
+
+**规则引擎**：前端的 `card-engine.js` 实现了 SKILL.md 的硬约束——资格判定（待办、计划、预测、未决问题不做卡）、单卡单知识点、重复合并、可溯源（卡片内容必须能逐字回溯原文）、不凑数（原文支持几张就出几张）。
+
+需要说明的是：引擎负责**结构化抽取与规则筛选**，不含 LLM。语义层的取舍（原文哪句值得成卡）仍由 Skill 或模型完成。
+
+**本地预览**（不打包也能看界面）：
+
+```bash
+npm install
+npm run serve        # 打开 http://127.0.0.1:5178
+```
+
+### 运行引擎测试
+
+```bash
+npm run test:engine       # 38 项规则符合性断言
+```
+
+前端零依赖运行，`serve` 与 `test:engine` 只需 Node.js，**不需要 `npm install`**。
+
+覆盖 4 类样本 × 8 项约束，外加「不凑数行为」与「边界处理」专项 —— 纯计划内容必须输出 0 张，超长输入必须仍 ≤ 128 张。
+
+---
+
+## 8. 已知问题
+
+### Windows exe 暂无法产出
+
+前端界面与 Tauri 打包配置都已就绪，但**当前无法编译出exe**。这是上游依赖与 Rust 1.99 的兼容问题，不是配置错误。
+
+**现象**
+
+```
+error[E0107]: struct takes 3 generic arguments but 2 generic arguments were supplied
+  --> schemars-0.8.22/src/lib.rs:12:32
+   |
+12 | pub type Map<K, V> = indexmap::IndexMap<K, V>;
+   |                                ^^^^^^^^ - - supplied 2 generic arguments
+```
+
+**根因**（已定位到源码级别）
+
+`indexmap` 的结构体定义分两个 cfg 分支：
+
+```rust
+#[cfg(has_std)]          pub struct IndexMap<K, V, S = RandomState> {  ✅ 有默认参数
+#[cfg(not(has_std))]     pub struct IndexMap<K, V, S> {                 ❌ 无默认参数
+```
+
+Rust 1.99 移除了 `has_std` 这个 cfg 标记，旧版 indexmap 一律走第二个分支，于是 `schemars` 写的两参数形式 `IndexMap<K, V>` 编译失败。
+
+**为什么无法自行绕过**
+
+引入 indexmap 的开关是 `schemars` 的 `preserve_order` feature，而 `tauri-build` 硬性启用它，无法关闭。`schemars` 0.8.21 与 0.8.22 声明的都是 `indexmap = "^1.2"`（无上限），所以降版 `schemars` 也没用。
+
+已逐一验证并**全部失败**的方案：
+
+| 尝试 | 结果 |
+|---|---|
+| 清华镜像源 | 失败（index 数据滞后，且与官方源表现一致） |
+| 官方 crates.io | 失败（同上） |
+| 锁 `schemars = 0.8.21` | 失败（`tauri-utils` 硬性要求 0.8.22） |
+| `[patch]` 指向本地 0.8.21 | 失败（cargo 报 patch 未被使用） |
+| 锁 `tauri-utils = 2.5.0` | 失败（与 `tauri 2.5.1` 版本区间冲突） |
+| 回退 indexmap 至 1.8.0 / 1.7.1 | 失败（这两个版本的 `not(has_std)` 分支同样无默认参数） |
+
+**解除阻塞的三条路**
+
+任选其一即可：
+
+```bash
+# 方案 1：等待上游修复（indexmap / schemars / Tauri 任一方适配 Rust 1.99）
+
+# 方案 2：用较旧的 Rust 工具链构建（推荐，无需等上游）
+rustup toolchain install 1.79.0
+cd src-tauri && cargo +1.79.0 build --release
+
+# 方案 3：改用 Electron 打包
+#   代价：exe 约 90-110 MB，会撞 GitHub 单文件 100 MB 硬限制
+```
+
+`src-tauri/` 目录已按方案 2 预留配置，环境就绪后一条命令即可产出 exe：
+
+```bash
+npm install
+npm run tauri:build
+```
+
+**构建前置条件**（若走方案 2 或 3）：
+
+1. Node.js ≥ 18
+2. Rust 工具链：`rustup-init.exe -y`
+3. **Visual Studio Build Tools 2022** —— Rust 在 Windows 上编译必须依赖 MSVC 链接器与 Windows SDK：
+   ```bash
+   curl -L -o vs_BuildTools.exe https://aka.ms/vs/17/release/vs_buildtools.exe
+   vs_BuildTools.exe --quiet --wait --norestart --nocache \
+     --add Microsoft.VisualStudio.Workload.VCTools \
+     --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
+     --add Microsoft.VisualStudio.Component.Windows11SDK.22621
+   ```
+   约需 3.5-6 GB 磁盘，仅装C++ 桌面开发工具，不装完整 Visual Studio。
+
+**国内网络**：npm 建议走 npmmirror：
+
+```bash
+npm config set registry https://registry.npmmirror.com
+```
 
 ### Skill 正文结构
 
@@ -279,14 +433,14 @@ make-knowledge-cards/
 |---|---|
 | Scope | 声明支持与不支持的输入，超范围的停下并说明 |
 | What Counts as a Knowledge Point | 资格判定表，定义什么能做卡 |
-| Workflow | Step 1 取源并判断是否够格 → Step 2 候选清单与筛选排序 → Step 3 定卡片数 → Step 4 写卡片 → Step 5 保真检查 → Step 6 输出 |
+| Workflow | Step 1 取源并判断是否够格 → Step 2 候选清单与筛选排序 → Step 3 定卡片数与分批 → Step 4 写卡片 → Step 5 保真检查 → Step 6 输出 |
 | Anti-Fabrication Rules | 七条禁止编造的硬约束 |
 | Language | 语言跟随原文的规则 |
 | Anti-Patterns | 症状 → 成因 → 修法的对照表 |
 
 ---
 
-## 8. 本地校验
+## 9. 本地校验
 
 ```bash
 python <skill-creator路径>/scripts/quick_validate.py skills/make-knowledge-cards
@@ -296,7 +450,7 @@ python <skill-creator路径>/scripts/quick_validate.py skills/make-knowledge-car
 
 ---
 
-## 9. 设计约束
+## 10. 设计约束
 
 构成这个 Skill 底线的硬规则：
 
@@ -312,20 +466,37 @@ python <skill-creator路径>/scripts/quick_validate.py skills/make-knowledge-car
 
 ---
 
-## 10. 测试覆盖
+## 11. 测试覆盖
 
-`tests/samples/` 下4 类样本分别验证了：
+`tests/samples/` 下 4 类样本分别验证了 Skill 规则；同一批样本也用于前端的规则引擎测试：
 
-| 样本 | 类型 | 验证点 |
-|---|---|---|
-| `01-tech-cache.md` | 英文技术文 | 四级 tie-break、省略说明 |
-| `02-news-foldable-cn.md` | 中文长分析文 | 重复论述去重、口径不一致标注、虚构声明在卡片与footer 的双重保留 |
-| `03-thin-notes.txt` | 极简短笔记 | 只出 2 张卡且不凑数、待办与未决事项不制卡、footer 措辞 |
-| `04-rust-ownership.md` | 技术讲义 | 代码块与编译器报错的落位顺序、术语兜底边界、跨小节取材 |
+| 样本 | 类型 | Skill 侧验证点 | 引擎输出 |
+|---|---|---|---|
+| `01-tech-cache.md` | 英文技术文 | 四级 tie-break、省略说明 | 9 张 |
+| `02-news-foldable-cn.md` | 中文长分析文 | 重复论述去重、口径不一致标注、虚构声明保留 | 10 张 |
+| `03-thin-notes.txt` | 极简短笔记 | 只出 2 张卡且不凑数、待办与未决事项不制卡 | 1 张 |
+| `04-rust-ownership.md` | 技术讲义 | 代码块与编译器报错的落位、术语兜底边界 | 6 张 |
 
 > ⚠️ **所有样本均为虚构测试数据**，标题、数字、厂商与结论均不对应任何真实企业、产品或市场判断，仅用于检验 Skill 行为。每个样本文件头部都写明了这一点。
 
-Skill 说明书经过三轮迭代：每轮用子代理按`SKILL.md` 实际跑全部样本，收集「哪里需要执行者自己猜」的报告，据此修补说明书规则。第一轮补入资格判定表、Caveat 字段、术语规则、派生数字规则、声明保留规则；第二轮补入 tie-break 裁决、artifact 落位顺序、footer 可选字段；第三轮补入枚举拆分规则、声明落位、术语判定阈值。
+### 规则引擎测试
+
+`npm run test:engine` 跑 **38 项断言**，覆盖：
+
+- **8 项硬约束** × 4 类样本：卡片数上限、编号连续、无多句熔合、内容可溯源、字段齐全、例子与自测二选一、计划类内容不成卡、无占位符残留
+- **不凑数行为**：纯计划内容必须输出 0 张；极简样本不超过 3 张
+- **边界处理**：空输入、纯空白、超长输入（400 段）
+
+测试过程中发现并修复了 4 个真实缺陷：
+
+| 缺陷 | 症状 | 根因 |
+|---|---|---|
+| 去重过激 | 9 条候选被合并成 1 张 | 中文按单字算 Jaccard 相似度失真，阈值过低 |
+| 溯源断裂 | 卡片内容无法逐字回溯原文 | 清理 Markdown 时删除了 `**`，改变了字符序列 |
+| 多句熔合 | 单卡含 6 句 | 段落切分只按空行，未按句号上限切 |
+| 长输入退化 | 400 段输入只出 1 张 | 上述去重缺陷的连带影响 |
+
+Skill 说明书经过三轮迭代：每轮用子代理按 `SKILL.md` 实际跑全部样本，收集「哪里需要执行者自己猜」的报告，据此修补说明书规则。第一轮补入资格判定表、Caveat 字段、术语规则、派生数字规则、声明保留规则；第二轮补入 tie-break 裁决、artifact 落位顺序、footer 可选字段；第三轮补入枚举拆分规则、声明落位、术语判定阈值。
 
 ---
 

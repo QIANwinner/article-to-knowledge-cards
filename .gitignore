@@ -19,8 +19,23 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 
+# 打包中间产物（Tauri 编译链，体积巨大，不入库）
+src-tauri/target/
+src-tauri/gen/
+node_modules/
+
 # 打包产物
 dist/
 build
 *.zip
 *.apkg
+
+# ============================================
+# 例外：release/ 目录下的最终 exe 显式纳入版本控制
+# ============================================
+# 上面 `dist/` 与 `build` 会忽略构建产物，但 release/ 下的 exe
+# 是用户要求的交付物，需随仓库分发以便下载。
+# Git 的「最后匹配规则生效」：下面的 ! 规则会覆盖前面的忽略。
+!release/
+!release/*.exe
+!release/*.md

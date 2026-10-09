@@ -1,0 +1,19 @@
+{
+  "name": "article-to-knowledge-cards-gui",
+  "version": "0.1.2",
+  "private": true,
+  "description": "文章转知识卡片 — 本地前端界面",
+  "scripts": {
+    "serve": "node scripts/serve.js",
+    "test:engine": "node scripts/test-engine.js",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  },
+  "comments": {
+    "usage": "主用npm run serve（浏览器打开 http://127.0.0.1:5178）。npm run tauri:build 用于产出 Windows exe，当前因 Tauri 2.x 与 Rust 1.99 的 indexmap/schemars 兼容问题无法编译，详见 README 的「已知问题」。",
+    "noDependencies": "前端零依赖运行，serve 与 test:engine 只需 Node.js 即可，不需要 npm install"
+  }
+}

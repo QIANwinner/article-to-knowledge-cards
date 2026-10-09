@@ -1,0 +1,55 @@
+# ⚠️ 当前无法编译 —— 详见 README「已知问题」章节
+#
+# 现象：编译报 error[E0107]: struct takes 3 generic arguments but 2 were
+# supplied，指向 schemars-0.8.x/src/lib.rs:12：
+#     pub type Map<K, V> = indexmap::IndexMap<K, V>;
+#
+# 已定位的根因（源码级）：
+#   indexmap 的 struct 定义分两个 cfg 分支：
+#     #[cfg(has_std)]      pub struct IndexMap<K, V, S = RandomState>  ✅ 有默认参数
+#     #[cfg(not(has_std))] pub struct IndexMap<K, V, S>                ❌ 无默认参数
+#   Rust 1.99 已移除 `has_std` cfg 标记，旧版 indexmap 一律走第二个分支，
+#   于是 schemars 的两参数写法 IndexMap<K, V> 编译失败。
+#
+# 无解的原因：
+#   - 引入 indexmap 的开关是 schemars 的 `preserve_order` feature，
+#     而 tauri-build 硬性启用该 feature，无法关闭
+#   - schemars 0.8.21 与 0.8.22 声明的都是 indexmap "^1.2"（无上限），
+#     降版 schemars 无效
+#   - 已验证无效的方案：清华镜像、官方源、锁 schemars 0.8.21、
+#     [patch] path patch、锁 tauri-utils、回退 indexmap 至 1.8.0 / 1.7.1
+#
+# 结论：这是 Tauri 2.x 依赖链与 Rust 1.99 的兼容性问题，
+#       需上游修复，无法在本仓库内绕过。
+#
+# 解除阻塞的可行路径（任一即可）：
+#   1. 等待 indexmap / schemars / Tauri 任一方适配 Rust 1.99
+#   2. 用较旧的 Rust 工具链（< 1.80，无 has_std 变更）构建：
+#      rustup toolchain install 1.79.0
+#      cargo +1.79.0 build --release
+#   3. 改用 Electron 打包（体积约 100MB，受 GitHub 单文件限制）
+#
+# 以下配置保留是为方案 2 预留，届时只需 `cargo +1.79.0 build --release`。
+
+[package]
+name = "knowledge-cards"
+version = "0.1.2"
+description = "把文章或本地 Markdown/TXT 转成知识卡片"
+authors = ["QIAN"]
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

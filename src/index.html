@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>文章转知识卡片</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app">
+
+  <header class="masthead">
+    <h1>文章转知识卡片</h1>
+    <p class="tagline">粘贴文章，或选择本地 Markdown / TXT，生成最多 128 张单知识点卡片</p>
+  </header>
+
+  <main class="workspace">
+
+    <!-- 左栏：输入 -->
+    <section class="panel panel-input">
+      <div class="panel-head">
+        <h2>原文</h2>
+        <div class="panel-actions">
+          <label class="btn btn-ghost" for="file-input">
+            选择文件
+            <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden />
+          </label>
+          <button class="btn btn-ghost" id="btn-clear" type="button">清空</button>
+        </div>
+      </div>
+
+      <div class="input-meta">
+        <span id="char-count">0 字符</span>
+        <span class="dot">·</span>
+        <span id="source-label">未选择来源</span>
+      </div>
+
+      <textarea
+        id="source"
+        class="source-input"
+        placeholder="在此粘贴文章正文，或点「选择文件」载入 .md / .txt 文件。&#10;&#10;支持：Markdown、TXT。&#10;不支持：网页链接、PDF、Word。"
+        spellcheck="false"></textarea>
+
+      <div class="generate-row">
+        <button class="btn btn-primary" id="btn-generate" type="button">
+          生成卡片
+        </button>
+        <div class="generate-hint" id="gen-hint">
+          每张卡一个知识点，不编造原文没有的信息
+        </div>
+      </div>
+
+      <div class="error-slot" id="error-slot" hidden></div>
+    </section>
+
+    <!-- 右栏：输出 -->
+    <section class="panel panel-output">
+      <div class="panel-head">
+        <h2>知识卡片</h2>
+        <div class="panel-actions">
+          <div class="export-group">
+            <button class="btn btn-ghost" id="btn-copy" type="button" disabled>复制 Markdown</button>
+            <button class="btn btn-ghost" id="btn-download" type="button" disabled>下载 .md</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="deck-stats" id="deck-stats" hidden>
+        <span class="stat" id="stat-count">0</span>
+        <span class="stat-label">张卡片</span>
+      </div>
+
+      <div class="deck" id="deck">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon" aria-hidden="true">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="7" y="10" width="14" height="28" rx="2" />
+              <rect x="24" y="10" width="17" height="13" rx="2" />
+              <rect x="24" y="26" width="17" height="12" rx="2" />
+            </svg>
+          </div>
+          <p class="empty-title">还没有卡片</p>
+          <p class="empty-sub">在左侧粘贴文章后点「生成卡片」</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="appfoot">
+    <span>本地运行 · 原文不会离开这台机器</span>
+    <span class="dot">·</span>
+    <a href="https://github.com/QIANwinner/article-to-knowledge-cards" target="_blank" rel="noopener">源码</a>
+    <span class="dot">·</span>
+    <span>MIT License</span>
+  </footer>
+
+</div>
+
+<script src="card-engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
