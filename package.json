@@ -1,19 +1,21 @@
 {
   "name": "article-to-knowledge-cards-gui",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
-  "description": "文章转知识卡片 — 本地前端界面",
+  "description": "文章转知识卡片 — 本地 GUI 前端",
   "scripts": {
     "serve": "node scripts/serve.js",
     "test:engine": "node scripts/test-engine.js",
+    "build:exe": "bash scripts/build-exe.sh",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build --no-bundle"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.1.0"
   },
   "comments": {
-    "usage": "主用npm run serve（浏览器打开 http://127.0.0.1:5178）。npm run tauri:build 用于产出 Windows exe，当前因 Tauri 2.x 与 Rust 1.99 的 indexmap/schemars 兼容问题无法编译，详见 README 的「已知问题」。",
-    "noDependencies": "前端零依赖运行，serve 与 test:engine 只需 Node.js 即可，不需要 npm install"
+    "usage": "浏览器预览用 npm run serve；产出 Windows exe 用 npm run build:exe（脚本内已内置 RUSTFLAGS=--cfg has_std，绕过 indexmap/schemars 与 Rust 1.99 的兼容问题）。",
+    "noDependencies": "前端零依赖运行，serve 与 test:engine 只需 Node.js，不需要 npm install",
+    "rustflags": "构建 Rust 侧必须带 --cfg has_std，否则报 E0107。详见 src-tauri/Cargo.toml 顶部注释。"
   }
 }

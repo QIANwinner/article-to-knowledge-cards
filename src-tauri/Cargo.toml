@@ -1,49 +1,52 @@
-# ⚠️ 当前无法编译 —— 详见 README「已知问题」章节
+# ⚠️ 构建必须带 RUSTFLAGS="--cfg has_std"
 #
-# 现象：编译报 error[E0107]: struct takes 3 generic arguments but 2 were
-# supplied，指向 schemars-0.8.x/src/lib.rs:12：
+# 现象（不带该 flag 时）：编译报error[E0107]: struct takes 3 generic
+# arguments but 2 were supplied，指向 schemars-0.8.x/src/lib.rs:12：
 #     pub type Map<K, V> = indexmap::IndexMap<K, V>;
 #
-# 已定位的根因（源码级）：
+# 根因（已定位到源码级）：
 #   indexmap 的 struct 定义分两个 cfg 分支：
 #     #[cfg(has_std)]      pub struct IndexMap<K, V, S = RandomState>  ✅ 有默认参数
 #     #[cfg(not(has_std))] pub struct IndexMap<K, V, S>                ❌ 无默认参数
-#   Rust 1.99 已移除 `has_std` cfg 标记，旧版 indexmap 一律走第二个分支，
-#   于是 schemars 的两参数写法 IndexMap<K, V> 编译失败。
+#   has_std 并非 rustc 内置标记，而是 indexmap 的 build.rs 用 autocfg
+#   探测目标三元组是否含 std crate 后自行 emit 的：
+#     autocfg::new().emit_sysroot_crate("std")
+#   Rust 1.99 上该探测失败 → has_std 未定义 → 走 not(has_std) 分支 →
+#   schemars 的两参数写法 IndexMap<K, V>（依赖默认参数）编译失败。
 #
-# 无解的原因：
-#   - 引入 indexmap 的开关是 schemars 的 `preserve_order` feature，
+# 解决：手动注入该 cfg，让 indexmap 走对分支：
+#   RUSTFLAGS="--cfg has_std" cargo build --release
+#   （scripts/build-exe.sh 已内置此flag）
+#
+# 为什么不能靠降级依赖解决：
+#   - 引入 indexmap 的开关是 schemars 的 preserve_order feature，
 #     而 tauri-build 硬性启用该 feature，无法关闭
-#   - schemars 0.8.21 与 0.8.22 声明的都是 indexmap "^1.2"（无上限），
+#   - schemars 0.8.21 与 0.8.22 都声明 indexmap "^1.2"（无上限），
 #     降版 schemars 无效
-#   - 已验证无效的方案：清华镜像、官方源、锁 schemars 0.8.21、
-#     [patch] path patch、锁 tauri-utils、回退 indexmap 至 1.8.0 / 1.7.1
+#   - 回退 indexmap 至 1.8.0 / 1.7.1 亦无效（这两个版本的
+#     not(has_std) 分支同样没有默认参数）
 #
-# 结论：这是 Tauri 2.x 依赖链与 Rust 1.99 的兼容性问题，
-#       需上游修复，无法在本仓库内绕过。
+# 三个 tauri 包必须严格锁版本 —— 它们的依赖区间互相冲突：
+#   tauri 2.12.1要求 tauri-utils ~2.10.1
+#   tauri-build 2.7.1      要求 tauri-utils ~2.10.1
+#   放开任一个版本会导致 tauri 与 tauri-utils 的 API 不匹配（E0061）。
 #
-# 解除阻塞的可行路径（任一即可）：
-#   1. 等待 indexmap / schemars / Tauri 任一方适配 Rust 1.99
-#   2. 用较旧的 Rust 工具链（< 1.80，无 has_std 变更）构建：
-#      rustup toolchain install 1.79.0
-#      cargo +1.79.0 build --release
-#   3. 改用 Electron 打包（体积约 100MB，受 GitHub 单文件限制）
-#
-# 以下配置保留是为方案 2 预留，届时只需 `cargo +1.79.0 build --release`。
+# 待indexmap / schemars 官方适配 Rust 1.99 后，可移除 RUSTFLAGS 与版本锁。
 
 [package]
 name = "knowledge-cards"
-version = "0.1.2"
+version = "0.1.3"
 description = "把文章或本地 Markdown/TXT 转成知识卡片"
 authors = ["QIAN"]
 edition = "2021"
 rust-version = "1.77"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "=2.7.1", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "=2.12.1", features = [] }
+tauri-utils = { version = "=2.10.1", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

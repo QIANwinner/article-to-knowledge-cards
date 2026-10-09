@@ -123,11 +123,8 @@
 | 网页抓取 | 不联网、不解析 URL，请直接粘贴正文 |
 | PDF / Word / Excel / PPT | 仅支持粘贴的文本与本地 `.md` / `.txt` |
 | 导出 Anki | 不生成 `.apkg` 或导入用CSV |
-| Windows exe 打包 | 受 Tauri 2.x 与 Rust 1.99 的兼容问题阻塞，见 §9 已知问题。前端界面本身可用 |
 
 遇到这几类输入时，Skill 会说明哪部分不被支持，并请你粘贴正文或指向 Markdown / TXT 文件，不会自己找变通办法。
-
-> 图形界面**已经实现**（`src/` 目录，浏览器直接可用），只是暂未产出 Windows 可执行文件。
 
 ---
 
@@ -281,13 +278,15 @@ article-to-knowledge-cards/
 │   ├── styles.css                         # 深色研究风样式
 │   ├── card-engine.js                     # 卡片生成引擎（规则实现）
 │   └── app.js                             # UI 交互层
-├── src-tauri/                            # Tauri 壳（Rust），配置就绪但当前无法编译，见 §8
+├── src-tauri/                            # Tauri 壳（Rust）
 │   ├── tauri.conf.json                   # 窗口与打包配置
 │   ├── Cargo.toml
-│   └── icons/                            # 应用图标
+│   └── icons/                            # 应用图标（含 icon.ico）
 ├── scripts/
 │   ├── test-engine.js                     # 引擎规则测试（38 项断言）
+│   ├── build-exe.sh                       # exe 打包脚本
 │   └── serve.js                           # 本地预览服务器
+├── release/                               # 编译产物（exe，约 2.5 MB）
 ├── skills/make-knowledge-cards/
 │   ├── SKILL.md                          # Skill 正文：判定规则 + 6 步工作流 + 卡片模板
 │   └── agents/
@@ -341,89 +340,69 @@ npm run test:engine       # 38 项规则符合性断言
 
 ---
 
-## 8. 已知问题
-
-### Windows exe 暂无法产出
-
-前端界面与 Tauri 打包配置都已就绪，但**当前无法编译出exe**。这是上游依赖与 Rust 1.99 的兼容问题，不是配置错误。
-
-**现象**
-
-```
-error[E0107]: struct takes 3 generic arguments but 2 generic arguments were supplied
-  --> schemars-0.8.22/src/lib.rs:12:32
-   |
-12 | pub type Map<K, V> = indexmap::IndexMap<K, V>;
-   |                                ^^^^^^^^ - - supplied 2 generic arguments
-```
-
-**根因**（已定位到源码级别）
-
-`indexmap` 的结构体定义分两个 cfg 分支：
-
-```rust
-#[cfg(has_std)]          pub struct IndexMap<K, V, S = RandomState> {  ✅ 有默认参数
-#[cfg(not(has_std))]     pub struct IndexMap<K, V, S> {                 ❌ 无默认参数
-```
-
-Rust 1.99 移除了 `has_std` 这个 cfg 标记，旧版 indexmap 一律走第二个分支，于是 `schemars` 写的两参数形式 `IndexMap<K, V>` 编译失败。
-
-**为什么无法自行绕过**
-
-引入 indexmap 的开关是 `schemars` 的 `preserve_order` feature，而 `tauri-build` 硬性启用它，无法关闭。`schemars` 0.8.21 与 0.8.22 声明的都是 `indexmap = "^1.2"`（无上限），所以降版 `schemars` 也没用。
-
-已逐一验证并**全部失败**的方案：
-
-| 尝试 | 结果 |
-|---|---|
-| 清华镜像源 | 失败（index 数据滞后，且与官方源表现一致） |
-| 官方 crates.io | 失败（同上） |
-| 锁 `schemars = 0.8.21` | 失败（`tauri-utils` 硬性要求 0.8.22） |
-| `[patch]` 指向本地 0.8.21 | 失败（cargo 报 patch 未被使用） |
-| 锁 `tauri-utils = 2.5.0` | 失败（与 `tauri 2.5.1` 版本区间冲突） |
-| 回退 indexmap 至 1.8.0 / 1.7.1 | 失败（这两个版本的 `not(has_std)` 分支同样无默认参数） |
-
-**解除阻塞的三条路**
-
-任选其一即可：
+### 构建 Windows exe
 
 ```bash
-# 方案 1：等待上游修复（indexmap / schemars / Tauri 任一方适配 Rust 1.99）
-
-# 方案 2：用较旧的 Rust 工具链构建（推荐，无需等上游）
-rustup toolchain install 1.79.0
-cd src-tauri && cargo +1.79.0 build --release
-
-# 方案 3：改用 Electron 打包
-#   代价：exe 约 90-110 MB，会撞 GitHub 单文件 100 MB 硬限制
+npm install                # 仅打包 exe 时需要
+npm run build:exe          # 产出 release/knowledge-cards.exe（约 2.5 MB）
 ```
 
-`src-tauri/` 目录已按方案 2 预留配置，环境就绪后一条命令即可产出 exe：
+产物在 `release/`，双击即用，无需安装。已实测启动正常（占用约 40 MB 内存）。
 
-```bash
-npm install
-npm run tauri:build
-```
-
-**构建前置条件**（若走方案 2 或 3）：
+**前置条件**（Windows）
 
 1. Node.js ≥ 18
 2. Rust 工具链：`rustup-init.exe -y`
 3. **Visual Studio Build Tools 2022** —— Rust 在 Windows 上编译必须依赖 MSVC 链接器与 Windows SDK：
    ```bash
    curl -L -o vs_BuildTools.exe https://aka.ms/vs/17/release/vs_buildtools.exe
-   vs_BuildTools.exe --quiet --wait --norestart --nocache \
+   ./vs_BuildTools.exe --quiet --wait --norestart --nocache \
      --add Microsoft.VisualStudio.Workload.VCTools \
      --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \
      --add Microsoft.VisualStudio.Component.Windows11SDK.22621
    ```
    约需 3.5-6 GB 磁盘，仅装C++ 桌面开发工具，不装完整 Visual Studio。
 
-**国内网络**：npm 建议走 npmmirror：
+### 构建踩坑：必须带 `RUSTFLAGS="--cfg has_std"`
+
+构建 Rust 侧时若报 `error[E0107]: struct takes 3 generic arguments but 2 generic arguments were supplied`，原因如下：
+
+`indexmap` 的结构体定义分两个 cfg 分支：
+
+```rust
+#[cfg(has_std)]      pub struct IndexMap<K, V, S = RandomState> {}  ✅ 有默认参数
+#[cfg(not(has_std))] pub struct IndexMap<K, V, S> {}                 ❌ 无默认参数
+```
+
+`has_std` 并非 rustc 内置标记，而是 indexmap 的 `build.rs` 用 autocfg 探测目标三元组是否含 std crate 后自行 emit 的：
+
+```rust
+autocfg::new().emit_sysroot_crate("std")
+```
+
+Rust 1.99 上该探测失败 → `has_std` 未定义 → 一律走 `not(has_std)` 分支 → `schemars` 写的 `IndexMap<K, V>`（依赖默认参数）编译失败。
+
+**解决**：手动注入该cfg，让 indexmap 走对分支。
 
 ```bash
-npm config set registry https://registry.npmmirror.com
+RUSTFLAGS="--cfg has_std" cargo build --release
 ```
+
+`scripts/build-exe.sh` 已内置此 flag，无需手动处理。
+
+**为什么不能靠降级依赖解决**：引入 indexmap 的开关是 `schemars` 的 `preserve_order` feature，而 `tauri-build` 硬性启用它；`schemars` 0.8.21 与 0.8.22 都声明 `indexmap = "^1.2"`（无上限），降版 schemars 无效；回退 indexmap 至 1.8.0 / 1.7.1 同样无效（这两个版本的 `not(has_std)` 分支也没有默认参数）。
+
+**版本锁的必要性**：三个 tauri 包的依赖区间互相冲突，必须严格锁：
+
+| 包 | 版本 | 原因 |
+|---|---|---|
+| `tauri` | `=2.12.1` | 要求 `tauri-utils ~2.10.1` |
+| `tauri-build` | `=2.7.1` | 要求 `tauri-utils ~2.10.1` |
+| `tauri-utils` | `=2.10.1` | 无 2.8.2 版本（build 侧最高 2.7.1） |
+
+放开任一个版本会导致 `tauri` 与 `tauri-utils` 的 API 不匹配（报 `E0061`：函数参数数量不符）。
+
+待 `indexmap` / `schemars` 官方适配 Rust 1.99 后，可移除 `RUSTFLAGS` 与版本锁。
 
 ### Skill 正文结构
 
@@ -440,7 +419,7 @@ npm config set registry https://registry.npmmirror.com
 
 ---
 
-## 9. 本地校验
+## 8. 本地校验
 
 ```bash
 python <skill-creator路径>/scripts/quick_validate.py skills/make-knowledge-cards
@@ -450,7 +429,7 @@ python <skill-creator路径>/scripts/quick_validate.py skills/make-knowledge-car
 
 ---
 
-## 10. 设计约束
+## 9. 设计约束
 
 构成这个 Skill 底线的硬规则：
 
@@ -466,7 +445,7 @@ python <skill-creator路径>/scripts/quick_validate.py skills/make-knowledge-car
 
 ---
 
-## 11. 测试覆盖
+## 10. 测试覆盖
 
 `tests/samples/` 下 4 类样本分别验证了 Skill 规则；同一批样本也用于前端的规则引擎测试：
 
