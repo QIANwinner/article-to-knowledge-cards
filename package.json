@@ -1,13 +1,17 @@
 {
   "name": "article-to-knowledge-cards",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "文章转知识卡片 — 本地 GUI 前端（Tauri 2 + 原生 JS，零前端依赖）",
   "scripts": {
     "serve": "node scripts/serve.js",
     "test:engine": "node scripts/test-engine.js",
+    "test:scheduler": "node scripts/test-scheduler.js",
+    "test:exporters": "node scripts/test-exporters.js",
     "check:skill": "node scripts/check-skill.js",
-    "test": "node scripts/test-engine.js && node scripts/check-skill.js",
+    "check:ui": "node scripts/check-ui-contract.js",
+    "test": "node scripts/test-engine.js && node scripts/test-scheduler.js && node scripts/test-exporters.js && node scripts/check-skill.js && node scripts/check-ui-contract.js && node scripts/check-version.js",
+    "check:version": "node scripts/check-version.js",
     "build:exe": "bash scripts/build-exe.sh",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build --no-bundle"
@@ -17,7 +21,8 @@
   },
   "comments": {
     "usage": "浏览器预览用 npm run serve；产出 Windows exe 用 npm run build:exe（脚本内已内置 RUSTFLAGS=--cfg has_std，绕过 indexmap/schemars 与 Rust 1.99 的兼容问题）。",
-    "noDependencies": "前端零依赖运行，serve 与 test:engine 只需 Node.js，不需要 npm install",
-    "rustflags": "构建 Rust 侧必须带 --cfg has_std，否则报 E0107。详见 src-tauri/Cargo.toml 顶部注释。"
+    "noDependencies": "前端零依赖运行，serve 与四组检查只需 Node.js，不需要 npm install",
+    "rustflags": "构建 Rust 侧必须带 --cfg has_std，否则报 E0107。详见 src-tauri/Cargo.toml 顶部注释。",
+    "versionSource": "版本号唯一源是 package.json；Cargo.toml 与 tauri.conf.json 由 npm run check:version 校验一致性。"
   }
 }

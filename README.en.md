@@ -4,6 +4,8 @@ Turn an article — or a local Markdown / TXT file — into **up to 128 knowledg
 
 This is an Agent Skill: it outputs one Markdown document, with no interface, no dependencies, and no network access. The repository also ships a local GUI and a 2.5 MB Windows executable.
 
+**Since v0.1.5 the GUI covers what happens after generation**: cards go into a local library where they can be edited field by field, tagged, exported to Anki / Obsidian / JSON, and scheduled for spaced review (an SM-2 variant). Source texts and cards never leave the machine.
+
 [中文说明](README.md) · **Live demo**: <https://qianwinner.github.io/article-to-knowledge-cards/> (runs in the browser, nothing to download)
 
 ---
@@ -74,7 +76,10 @@ Hard constraints, not preferences: no outside definitions, no real-world statist
 |---|---|
 | Web page fetching | No network access; paste the text instead |
 | PDF / Word / Excel / PPT | Pasted text and local `.md` / `.txt` only |
-| Anki export | No `.apkg`, no import CSV |
+| Model-written explanations | The engine only quotes derivations that exist in the source |
+| Web clipping | Same as web fetching: no network access |
+
+**Anki export is handled by the GUI** (Card library → Export Anki, produces tab-separated CSV with a BOM so neither Excel nor Anki mangles Chinese), **not by the Skill** — the Skill never writes `.apkg` or import files. That division is written into `SKILL.md`'s Out of scope section so the two never disagree.
 
 ---
 
@@ -178,14 +183,20 @@ Note what did **not** happen: the deck was not padded to five, the to-do did not
 ```
 article-to-knowledge-cards/
 ├── LICENSE / README.md / README.en.md / CHANGELOG.md
-├── .github/workflows/         # ci.yml (tests) + pages.yml (live demo)
+├── .github/workflows/         # ci.yml (six check suites) + pages.yml (live demo)
 ├── src/                       # frontend source, also the Pages publish directory
-│   ├── index.html
-│   ├── styles.css
-│   ├── card-engine.js         # the rule engine
-│   └── app.js                 # UI layer
+│   ├── index.html             # three-tab shell
+│   ├── styles.css             # dark research theme (contrast-verified palette)
+│   ├── card-engine.js         # the rule engine (no LLM)
+│   ├── store.js               # card library + local persistence
+│   ├── scheduler.js           # spaced repetition (SM-2 variant)
+│   ├── exporters.js           # Markdown / Anki / JSON / Obsidian
+│   ├── ui.js                  # shared helpers: escaping, toast, download
+│   ├── library.js             # library panel
+│   ├── review.js              # review panel
+│   └── app.js                 # entry: tab routing + generation panel
 ├── src-tauri/                 # Tauri 2 shell (Rust)
-├── scripts/                   # tests, skill check, exe build, preview server
+├── scripts/                   # tests, checks, exe build, preview server
 ├── release/                   # build output (exe, ~2.5 MB)
 ├── skills/make-knowledge-cards/
 │   ├── SKILL.md
@@ -194,6 +205,19 @@ article-to-knowledge-cards/
 ```
 
 **Stack**: plain HTML + CSS + JavaScript (no framework, no build step) inside a Tauri 2 shell. React + Vite would add hundreds of `node_modules` and a build layer for an interface that does three things — text input, card rendering, Markdown export.
+
+### The card library and review loop
+
+| Capability | Notes |
+|---|---|
+| Local library | One click stores a batch with its source text; survives closing the browser or the exe |
+| Card editing | Edit title, core, explanation, caveat and example; fixing the explanation clears the "not provided in the source" flag and marks it `人工补充` |
+| Tags & filters | Tag cards, filter by status / source / keyword / "needs explanation" |
+| Spaced repetition | SM-2 variant with three grades (again / hard / good); the nav badge lights up when cards come due |
+| Four exports | Markdown / Anki CSV / JSON (with schedule state, re-importable) / Obsidian wikilinks |
+| Backup | The whole library exports to one JSON file and imports back |
+
+**Why SM-2 and not FSRS**: FSRS fits the forgetting curve with 17 weights, which is better — but those weights need calibrating against your own review history. Without data, FSRS gives you an interval that *looks* advanced and isn't trustworthy. Revisit once you have a hundred cards and real "remembered / forgot" records.
 
 ### The rule engine
 
@@ -226,11 +250,17 @@ The build **must** set `RUSTFLAGS="--cfg has_std"`, otherwise compilation fails 
 ## 9. Tests
 
 ```bash
-npm test              # 61 engine assertions + skill structure check
-npm run test:engine   # engine assertions only
+npm test                # all six suites (~200 assertions)
+npm run test:engine     # rule engine only
+npm run test:scheduler  # scheduler + library
+npm run test:exporters  # export formats
+npm run check:ui        # UI contract: ids, class names, module exports, action branches
+npm run check:version   # version consistency across three files
 ```
 
-No `npm install` needed. Four fictional fixtures × 13 constraints, plus dedicated blocks for anti-padding behaviour, disclaimer preservation, text joining and boundary handling. GitHub Actions runs the same assertions on every push and pull request.
+No `npm install` needed. Four fictional fixtures × 13 constraints, plus dedicated blocks for anti-padding behaviour, disclaimer preservation, text joining and boundary handling. GitHub Actions runs the same suites on every push and pull request.
+
+`check:ui` exists because no headless browser is available on the maintainer's machine — static checks stand in for the runtime coverage CI otherwise cannot provide. It catches the three failure modes with the worst signal-to-noise ratio: querying an id that doesn't exist (crashes immediately), using a class name with no stylesheet rule (vanishes from the UI without an error), and misspelling a module method (`undefined is not a function`). **It does not cover real rendering or interaction** — that still needs a human.
 
 ---
 
@@ -250,11 +280,16 @@ No `npm install` needed. Four fictional fixtures × 13 constraints, plus dedicat
 
 ## 11. Known limits
 
-| Case | Engine behaviour |
+| Case | Behaviour |
 |---|---|
-| The source offers no explanation | Flagged as "not provided in the source"; semantics are left to the model via **Copy prompt** |
+| The source offers no explanation | Flagged as "not provided in the source"; semantics are left to the model via **Copy prompt**, or filled in by hand in the library |
 | Semantic-level contradictions | No caveat is emitted — the engine would rather under-report than invent a conflict |
 | Code block placement | Fenced blocks are skipped; the Skill's "code to Example, compiler errors to core knowledge" rule is executed by the model |
+| No browser render tests | `check:ui` is static only; real rendering and interaction need a manual pass |
+| Review algorithm uncalibrated | Fixed-parameter SM-2 variant. Worth moving to calibrated FSRS once you have a hundred cards and real review history |
+| Dark theme only | `--text-faint` was raised to 4.9:1 to meet WCAG AA, but there is no light theme and no English UI yet |
+
+Data boundaries: cards and sources live in the browser's `localStorage`. **Switching browsers, clearing site data, or closing a private window loses them** — export a JSON backup for anything important. When `localStorage` is unavailable the app degrades to an in-memory library and says so in the footer rather than failing silently. The Tauri build uses the same WebView storage, so its data does not sync with the browser build; move it with the JSON backup.
 
 ---
 

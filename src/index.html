@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0b0e14" />
 <title>文章转知识卡片</title>
 <meta name="description" content="把文章或本地 Markdown / TXT 转成知识卡片。本地运行，不联网，不编造原文没有的信息。" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234b6bff'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'%3E%3Crect x='7' y='8' width='12' height='16' rx='2'/%3E%3Cpath d='M21 12h4M21 18h4M21 24h4'/%3E%3C/g%3E%3C/svg%3E" />
@@ -12,88 +14,133 @@
 <div class="app">
 
   <header class="masthead">
-    <h1>文章转知识卡片</h1>
-    <p class="tagline">粘贴文章，或选择本地 Markdown / TXT，生成最多 128 张单知识点卡片</p>
+    <div class="masthead-row">
+      <h1>文章转知识卡片</h1>
+      <p class="tagline">粘贴文章，或选择本地 Markdown / TXT，生成最多 128 张单知识点卡片</p>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="主导航">
+      <button class="tab is-active" id="tab-make" role="tab" aria-selected="true" aria-controls="panel-make" type="button">生成</button>
+      <button class="tab" id="tab-library" role="tab" aria-selected="false" aria-controls="panel-library" type="button">
+        卡片库 <span class="tab-badge" id="badge-library">0</span>
+      </button>
+      <button class="tab" id="tab-review" role="tab" aria-selected="false" aria-controls="panel-review" type="button">
+        复习 <span class="tab-badge is-warn" id="badge-due">0</span>
+      </button>
+    </nav>
   </header>
 
   <main class="workspace">
 
-    <!-- 左栏：输入 -->
-    <section class="panel panel-input">
-      <div class="panel-head">
-        <h2>原文</h2>
-        <div class="panel-actions">
-          <label class="btn btn-ghost" for="file-input">
-            选择文件
-            <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden />
-          </label>
-          <button class="btn btn-ghost" id="btn-clear" type="button">清空</button>
+    <!-- 面板一：生成 -->
+    <section class="panel-view view-make" id="panel-make" role="tabpanel" aria-labelledby="tab-make">
+      <section class="panel panel-input">
+        <div class="panel-head">
+          <h2>原文</h2>
+          <div class="panel-actions">
+            <label class="btn btn-ghost" for="file-input">
+              选择文件
+              <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden />
+            </label>
+            <button class="btn btn-ghost" id="btn-clear" type="button">清空</button>
+          </div>
         </div>
-      </div>
 
-      <div class="input-meta">
-        <span id="char-count">0 字符</span>
-        <span class="dot">·</span>
-        <span id="source-label">未选择来源</span>
-      </div>
-
-      <textarea
-        id="source"
-        class="source-input"
-        placeholder="在此粘贴文章正文，或点「选择文件」载入 .md / .txt 文件。&#10;&#10;支持：Markdown、TXT。&#10;不支持：网页链接、PDF、Word。"
-        spellcheck="false"></textarea>
-
-      <div class="generate-row">
-        <button class="btn btn-primary" id="btn-generate" type="button">
-          生成卡片
-        </button>
-        <button class="btn btn-ghost" id="btn-prompt" type="button" title="复制一段可直接投喂模型的提示词，由模型补齐语义解释">
-          复制提示词
-        </button>
-        <div class="generate-hint" id="gen-hint">
-          每张卡一个知识点，不编造原文没有的信息
+        <div class="input-meta">
+          <span id="char-count">0 字符</span>
+          <span class="dot">·</span>
+          <span id="source-label">未选择来源</span>
         </div>
-      </div>
 
-      <div class="error-slot" id="error-slot" hidden></div>
+        <textarea
+          id="source"
+          class="source-input"
+          placeholder="在此粘贴文章正文，或点「选择文件」载入 .md / .txt 文件。&#10;&#10;支持：Markdown、TXT。&#10;不支持：网页链接、PDF、Word。"
+          spellcheck="false"></textarea>
+
+        <div class="generate-row">
+          <button class="btn btn-primary" id="btn-generate" type="button">生成卡片</button>
+          <button class="btn btn-ghost" id="btn-prompt" type="button" title="复制一段可直接投喂模型的提示词，由模型补齐语义解释">复制提示词</button>
+          <div class="generate-hint" id="gen-hint">每张卡一个知识点，不编造原文没有的信息</div>
+        </div>
+
+        <div class="error-slot" id="error-slot" role="alert" aria-live="polite" hidden></div>
+      </section>
+
+      <section class="panel panel-output">
+        <div class="panel-head">
+          <h2>知识卡片</h2>
+          <div class="panel-actions">
+            <div class="export-group">
+              <button class="btn btn-ghost" id="btn-copy" type="button" disabled>复制</button>
+              <button class="btn btn-ghost" id="btn-download" type="button" disabled>下载 .md</button>
+              <button class="btn btn-primary btn-sm" id="btn-save" type="button" disabled title="把这批卡片存入本地卡片库">存入卡片库</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="deck-stats" id="deck-stats" hidden>
+          <span class="stat" id="stat-count">0</span>
+          <span class="stat-label">张卡片</span>
+        </div>
+
+        <div class="deck" id="deck"></div>
+      </section>
     </section>
 
-    <!-- 右栏：输出 -->
-    <section class="panel panel-output">
-      <div class="panel-head">
-        <h2>知识卡片</h2>
-        <div class="panel-actions">
+    <!-- 面板二：卡片库 -->
+    <section class="panel-view view-single" id="panel-library" role="tabpanel" aria-labelledby="tab-library" hidden>
+      <div class="lib-toolbar">
+        <div class="lib-toolbar-row">
+          <input type="search" id="lib-search" class="lib-search" placeholder="搜索标题、核心知识或标签…" aria-label="搜索卡片" />
+          <select id="lib-status" class="lib-select" aria-label="按状态筛选">
+            <option value="">全部状态</option>
+            <option value="new">未复习</option>
+            <option value="learning">学习中</option>
+            <option value="review">复习中</option>
+            <option value="mastered">已掌握</option>
+          </select>
+          <select id="lib-source" class="lib-select" aria-label="按来源筛选">
+            <option value="">全部来源</option>
+          </select>
+          <label class="lib-check">
+            <input type="checkbox" id="lib-gap" />
+            只看待补解释
+          </label>
+        </div>
+        <div class="lib-toolbar-row">
+          <span class="lib-meta" id="lib-meta">—</span>
           <div class="export-group">
-            <button class="btn btn-ghost" id="btn-copy" type="button" disabled>复制 Markdown</button>
-            <button class="btn btn-ghost" id="btn-download" type="button" disabled>下载 .md</button>
+            <button class="btn btn-ghost btn-sm" id="lib-export-md" type="button">导出 Markdown</button>
+            <button class="btn btn-ghost btn-sm" id="lib-export-anki" type="button">导出 Anki</button>
+            <button class="btn btn-ghost btn-sm" id="lib-export-json" type="button">导出 JSON</button>
+            <button class="btn btn-ghost btn-sm" id="lib-export-obs" type="button">导出 Obsidian</button>
+            <label class="btn btn-ghost btn-sm" for="lib-import">
+              导入
+              <input type="file" id="lib-import" accept=".json" hidden />
+            </label>
           </div>
         </div>
       </div>
+      <div class="deck" id="lib-deck"></div>
+    </section>
 
-      <div class="deck-stats" id="deck-stats" hidden>
-        <span class="stat" id="stat-count">0</span>
-        <span class="stat-label">张卡片</span>
-      </div>
-
-      <div class="deck" id="deck">
-        <div class="empty-state" id="empty-state">
-          <div class="empty-icon" aria-hidden="true">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="7" y="10" width="14" height="28" rx="2" />
-              <rect x="24" y="10" width="17" height="13" rx="2" />
-              <rect x="24" y="26" width="17" height="12" rx="2" />
-            </svg>
-          </div>
-          <p class="empty-title">还没有卡片</p>
-          <p class="empty-sub">在左侧粘贴文章后点「生成卡片」</p>
+    <!-- 面板三：复习 -->
+    <section class="panel-view view-single" id="panel-review" role="tabpanel" aria-labelledby="tab-review" hidden>
+      <div class="review-wrap">
+        <div class="review-head">
+          <span class="review-count" id="review-count">0 / 0</span>
+          <span class="review-sub" id="review-sub">今日待复习</span>
         </div>
+        <div class="deck deck-review" id="review-deck"></div>
       </div>
     </section>
 
   </main>
 
   <footer class="appfoot">
-    <span>本地运行 · 原文不会离开这台机器</span>
+    <span class="foot-storage" id="foot-storage">本地存储</span>
+    <span class="dot">·</span>
+    <span>原文不会离开这台机器</span>
     <span class="dot">·</span>
     <a href="https://github.com/QIANwinner/article-to-knowledge-cards" target="_blank" rel="noopener">源码</a>
     <span class="dot">·</span>
@@ -104,7 +151,15 @@
 
 </div>
 
+<div class="toast" id="toast-slot" role="status" aria-live="polite" hidden></div>
+
 <script src="card-engine.js"></script>
+<script src="store.js"></script>
+<script src="scheduler.js"></script>
+<script src="exporters.js"></script>
+<script src="ui.js"></script>
+<script src="library.js"></script>
+<script src="review.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

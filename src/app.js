@@ -1,46 +1,96 @@
 /**
- * app.js — UI 交互层
- * 职责：DOM 绑定、渲染、分批呈现、导出
+ * app.js — 应用入口：Tab 路由 + 生成面板
+ *
+ * 面板分工：
+ *   生成（本文件）    粘贴原文 → 引擎出卡 → 质量报告 → 存入卡片库
+ *   卡片库（library.js）编辑、标签、掌握状态、四种导出、备份导入
+ *   复习（review.js）    到期队列 + 三档自评 + 间隔重排
+ *
+ * 三个面板通过 onChange 回调互相同步徽标，避免各自刷新造成闪烁。
  */
 
 (() => {
   'use strict';
 
-  const $ = (id) => document.getElementById(id);
+  const { escapeHtml, flash, toast, readFileAsText, nl2br } = UI;
+
+  const BATCH_THRESHOLD = 25;
+  const GROUP_THRESHOLD = 60;
+  const PROMPT_INLINE_LIMIT = 3000;
 
   const el = {
-    source: $('source'),
-    charCount: $('char-count'),
-    sourceLabel: $('source-label'),
-    fileInput: $('file-input'),
-    btnClear: $('btn-clear'),
-    btnGenerate: $('btn-generate'),
-    btnPrompt: $('btn-prompt'),
-    genHint: $('gen-hint'),
-    errorSlot: $('error-slot'),
-    deck: $('deck'),
-    deckStats: $('deck-stats'),
-    statCount: $('stat-count'),
-    btnCopy: $('btn-copy'),
-    btnDownload: $('btn-download')
+    source: UI.$('source'),
+    charCount: UI.$('char-count'),
+    sourceLabel: UI.$('source-label'),
+    fileInput: UI.$('file-input'),
+    btnClear: UI.$('btn-clear'),
+    btnGenerate: UI.$('btn-generate'),
+    btnPrompt: UI.$('btn-prompt'),
+    btnSave: UI.$('btn-save'),
+    genHint: UI.$('gen-hint'),
+    errorSlot: UI.$('error-slot'),
+    deck: UI.$('deck'),
+    deckStats: UI.$('deck-stats'),
+    statCount: UI.$('stat-count'),
+    btnCopy: UI.$('btn-copy'),
+    btnDownload: UI.$('btn-download'),
+    footStorage: UI.$('foot-storage')
   };
 
-  let state = {
+  const state = {
     sourceText: '',
     sourceName: '',
     cards: [],
     stats: null,
-    disclaimers: []
+    disclaimers: [],
+    rejected: [],
+    saved: false
   };
 
-  const BATCH_THRESHOLD = 25;
-  const GROUP_THRESHOLD = 60;
+  /* ---------- 徽标与存储状态 ---------- */
+
+  function refreshBadges() {
+    const all = Store.listCards();
+    const s = Scheduler.summarize(all);
+    UI.$('badge-library').textContent = String(all.length);
+    const dueBadge = UI.$('badge-due');
+    dueBadge.textContent = String(s.due);
+    dueBadge.classList.toggle('is-hot', s.due > 0);
+    const st = Store.stats();
+    el.footStorage.textContent = st.persistent
+      ? `本地存储 · ${st.cards} 张 / ${st.sources} 篇`
+      : '⚠ 仅本次会话有效（浏览器存储不可用）';
+    el.footStorage.classList.toggle('is-warn', !st.persistent);
+  }
+
+  /* ---------- Tab 路由 ---------- */
+
+  const TABS = [
+    { id: 'make', panel: 'panel-make', tab: 'tab-make' },
+    { id: 'library', panel: 'panel-library', tab: 'tab-library' },
+    { id: 'review', panel: 'panel-review', tab: 'tab-review' }
+  ];
+
+  function showTab(id) {
+    for (const t of TABS) {
+      const active = t.id === id;
+      UI.$(t.panel).hidden = !active;
+      const btn = UI.$(t.tab);
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-selected', String(active));
+    }
+    if (id === 'library') Library.render();
+    if (id === 'review') Review.start();
+  }
+
+  function bindTabs() {
+    for (const t of TABS) UI.$(t.tab).addEventListener('click', () => showTab(t.id));
+  }
 
   /* ---------- 输入侧 ---------- */
 
   function updateCharCount() {
-    const n = el.source.value.length;
-    el.charCount.textContent = `${n.toLocaleString('zh-CN')} 字符`;
+    el.charCount.textContent = `${el.source.value.length.toLocaleString('zh-CN')} 字符`;
   }
 
   function showError(msg) {
@@ -61,36 +111,36 @@
     }
   });
 
-  el.fileInput.addEventListener('change', (e) => {
+  el.fileInput.addEventListener('change', async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-
-    const okExt = /\.(md|markdown|txt)$/i.test(file.name);
-    if (!okExt) {
+    if (!/\.(md|markdown|txt)$/i.test(file.name)) {
       showError(`不支持的文件类型：${file.name}。仅支持 .md / .markdown / .txt。`);
       el.fileInput.value = '';
       return;
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result || '');
+    try {
+      const text = await readFileAsText(file);
       el.source.value = text;
       state.sourceText = text;
       state.sourceName = file.name;
       el.sourceLabel.textContent = file.name;
       updateCharCount();
       showError('');
-    };
-    reader.onerror = () => {
+    } catch (err) {
       showError(`读取文件失败：${file.name}`);
-    };
-    reader.readAsText(file, 'utf-8');
+    }
   });
 
   el.btnClear.addEventListener('click', () => {
     el.source.value = '';
-    state = { sourceText: '', sourceName: '', cards: [], stats: null, disclaimers: [] };
+    state.sourceText = '';
+    state.sourceName = '';
+    state.cards = [];
+    state.stats = null;
+    state.disclaimers = [];
+    state.rejected = [];
+    state.saved = false;
     el.sourceLabel.textContent = '未选择来源';
     el.fileInput.value = '';
     updateCharCount();
@@ -98,6 +148,7 @@
     renderEmpty();
     el.btnCopy.disabled = true;
     el.btnDownload.disabled = true;
+    el.btnSave.disabled = true;
   });
 
   /* ---------- 生成 ---------- */
@@ -112,6 +163,10 @@
       showError('原文太短（不足 50 字符），无法提取知识点。');
       return;
     }
+    if (text.length > 400000) {
+      showError('原文超过 40 万字符，建议按小节分次处理。');
+      return;
+    }
 
     el.btnGenerate.disabled = true;
     el.genHint.textContent = '正在切分与筛选…';
@@ -119,13 +174,16 @@
     // 让按钮态先渲染，再跑计算
     setTimeout(() => {
       try {
-        const { cards, stats, disclaimers } = Engine.generate(text);
-        state.cards = cards;
-        state.stats = stats;
-        state.disclaimers = disclaimers || [];
-        render(cards, stats);
-        el.btnCopy.disabled = cards.length === 0;
-        el.btnDownload.disabled = cards.length === 0;
+        const result = Engine.generate(text);
+        state.cards = result.cards;
+        state.stats = result.stats;
+        state.disclaimers = result.disclaimers || [];
+        state.rejected = result.rejected || [];
+        state.saved = false;
+        render(result.cards, result.stats);
+        el.btnCopy.disabled = state.cards.length === 0;
+        el.btnDownload.disabled = state.cards.length === 0;
+        el.btnSave.disabled = state.cards.length === 0;
         el.genHint.textContent = '每张卡一个知识点，不编造原文没有的信息';
         showError('');
       } catch (err) {
@@ -161,20 +219,18 @@
 
     if (!cards.length) {
       const note = stats && stats.note ? stats.note : '未找到可独立成卡的知识点。';
-      el.deck.innerHTML = `<div class="engine-note">${escapeHtml(note)}</div>` + statsBlock(stats);
+      el.deck.innerHTML = `<div class="engine-note">${escapeHtml(note)}</div>` + qualityPanel(stats, cards);
       return;
     }
 
-    const frag = document.createDocumentFragment();
-
-    // 引擎处理统计（折叠在下方）
-    frag.appendChild(statsBlock(stats));
+    let html = qualityPanel(stats, cards);
 
     if (cards.length <= GROUP_THRESHOLD) {
-      if (cards.length > BATCH_THRESHOLD) frag.appendChild(sectionHead('按原文小节', '分组'));
-      for (const card of cards) frag.appendChild(renderCard(card));
+      if (cards.length > BATCH_THRESHOLD) {
+        html += `<div class="batch-head"><span class="batch-no">—</span><span class="batch-title">按原文小节</span><span class="batch-range">分组</span></div>`;
+      }
+      html += cards.map(cardHtml).join('');
     } else {
-      // 按 section 分批
       const groups = new Map();
       for (const c of cards) {
         const key = c.section || '正文';
@@ -185,64 +241,27 @@
       const total = groups.size;
       for (const [name, list] of groups) {
         i += 1;
-        frag.appendChild(
-          batchHead(i, total, name, `${list[0].index}–${list[list.length - 1].index}`)
-        );
-        for (const card of list) frag.appendChild(renderCard(card));
+        html += `<div class="batch-head">
+          <span class="batch-no">${i}/${total}</span>
+          <span class="batch-title">${escapeHtml(name)}</span>
+          <span class="batch-range">卡片 ${list[0].index}–${list[list.length - 1].index}</span>
+        </div>`;
+        html += list.map(cardHtml).join('');
       }
     }
 
-    el.deck.innerHTML = '';
-    el.deck.appendChild(frag);
+    el.deck.innerHTML = html;
   }
 
-  function sectionHead(title, tag) {
-    const d = document.createElement('div');
-    d.className = 'batch-head';
-    d.innerHTML = `
-      <span class="batch-no">—</span>
-      <span class="batch-title">${escapeHtml(title)}</span>
-      <span class="batch-range">${escapeHtml(tag)}</span>`;
-    return d;
-  }
-
-  function batchHead(i, total, title, range) {
-    const d = document.createElement('div');
-    d.className = 'batch-head';
-    d.innerHTML = `
-      <span class="batch-no">${i}/${total}</span>
-      <span class="batch-title">${escapeHtml(title)}</span>
-      <span class="batch-range">卡片 ${escapeHtml(range)}</span>`;
-    return d;
-  }
-
-  function statsBlock(stats) {
-    if (!stats) return document.createDocumentComment('');
-    const produced = stats.qualified - stats.merged - stats.overCeiling;
-    const d = document.createElement('div');
-    d.className = 'engine-stats';
-    d.innerHTML =
-      `<b>引擎处理</b>：原文 ${stats.sections} 小节 → ${stats.candidates} 候选` +
-      ` → ${stats.qualified} 通过资格判定 → 合并重复 ${stats.merged} → ${produced} 张卡片` +
-      (stats.overCeiling ? `（超上限省略 ${stats.overCeiling}）` : '') +
-      ` · ${stats.elapsed}ms` +
-      `<br><b>保真</b>：口径提示 ${stats.caveats} 张` +
-      ` · 解释取自原文 ${produced - stats.plainGaps} 张` +
-      ` · 原文未提供解释 ${stats.plainGaps} 张` +
-      (stats.disclaimers ? ` · 原文声明 ${stats.disclaimers} 段已保留` : ' · 原文无免责声明');
-    return d;
-  }
-
-  function renderCard(card) {
-    const div = document.createElement('article');
-    div.className = 'card';
-
+  function cardHtml(card) {
     const hasCaveat = card.caveat && card.caveat.trim();
-    const mergedNote =
-      card.mergedFrom > 1 ? ` · 合并 ${card.mergedFrom} 处重复论述` : '';
-    const tagClass = card.plainGap ? 'field-tag is-gap' : 'field-tag';
+    const merged =
+      (card.mergedFrom || 1) > 1
+        ? `<div class="card-foot">合并 ${card.mergedFrom} 处重复论述</div>`
+        : '';
 
-    div.innerHTML = `
+    return `
+    <article class="card">
       <div class="card-head">
         <span class="card-no">${card.index}</span>
         <h3 class="card-title">${escapeHtml(card.title)}</h3>
@@ -250,97 +269,163 @@
       </div>
       <div class="field field-core">
         <span class="field-label">核心知识 / Core knowledge</span>
-        <p class="field-body">${escapeHtml(card.core)}</p>
+        <p class="field-body">${nl2br(card.core)}</p>
       </div>
       <div class="field">
         <div class="field-head">
           <span class="field-label">简明解释 / Plain explanation</span>
-          <span class="${tagClass}">${escapeHtml(card.plainSource || '原文未提供')}</span>
+          <span class="${card.plainGap ? 'field-tag is-gap' : 'field-tag'}">${escapeHtml(card.plainSource || '原文未提供')}</span>
         </div>
-        <p class="field-body">${escapeHtml(card.plain)}</p>
+        <p class="field-body">${nl2br(card.plain)}</p>
       </div>
-      ${hasCaveat ? `
-      <div class="field field-caveat">
+      ${hasCaveat ? `<div class="field field-caveat">
         <span class="field-label">口径提示 / Caveat</span>
-        <p class="field-body">${escapeHtml(card.caveat)}</p>
+        <p class="field-body">${nl2br(card.caveat)}</p>
       </div>` : ''}
       <div class="field field-example">
         <span class="field-label">${escapeHtml(card.exampleLabel)}</span>
-        <p class="field-body">${escapeHtml(card.example)}</p>
+        <p class="field-body">${nl2br(card.example)}</p>
       </div>
-      ${mergedNote ? `<div class="card-foot">${escapeHtml(mergedNote.trim())}</div>` : ''}
-    `;
-    return div;
+      ${merged}
+    </article>`;
   }
 
-  function escapeHtml(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+  /**
+   * 质量报告：把引擎的判定过程摊开给用户看。
+   * 「不凑数」是本项目的立身之本，只给一个数字等于让人没法验证。
+   */
+  function qualityPanel(stats, cards) {
+    if (!stats) return '';
+
+    const produced = stats.qualified - stats.merged - stats.overCeiling;
+    const gapCards = cards.filter((c) => c.plainGap);
+    const mergedCards = cards.filter((c) => (c.mergedFrom || 1) > 1);
+
+    // 拒判按原因分组
+    const byWhy = new Map();
+    for (const r of state.rejected) {
+      if (!byWhy.has(r.why)) byWhy.set(r.why, []);
+      byWhy.get(r.why).push(r);
+    }
+
+    const summary =
+      `原文 ${stats.sections} 小节 → ${stats.candidates} 候选 → ${stats.qualified} 通过判定` +
+      ` → 合并重复 ${stats.merged} → ${produced} 张卡片` +
+      (stats.overCeiling ? `（超上限省略 ${stats.overCeiling}）` : '');
+
+    const detail = [];
+
+    detail.push(`<div class="qr-block">
+      <div class="qr-title">候选去留<span>${stats.candidates} → ${stats.qualified}</span></div>
+      <div class="qr-sum">${escapeHtml(summary)}</div>
+      ${Array.from(byWhy.entries())
+        .map(
+          ([why, items]) => `<details class="qr-sub">
+            <summary>未通过：${escapeHtml(why)} · ${items.length} 条</summary>
+            <ul class="qr-list">${items
+              .slice(0, 20)
+              .map(
+                (r) =>
+                  `<li><span class="qr-sec">${escapeHtml(r.section || '正文')}</span>${nl2br(r.text)}</li>`
+              )
+              .join('')}</ul>
+            ${items.length > 20 ? `<div class="qr-more">仅显示前 20 条，共 ${items.length} 条</div>` : ''}
+          </details>`
+        )
+        .join('')}
+    </div>`);
+
+    if (gapCards.length) {
+      detail.push(`<div class="qr-block">
+        <div class="qr-title">解释缺口<span>${gapCards.length} 张</span></div>
+        <div class="qr-sum">这些卡片的主张在原文里成立，但原文没给出可引用的推导。引擎不替你补，标出来等你或模型补。</div>
+        <ul class="qr-list">${gapCards
+          .map((c) => `<li>#${c.index} ${escapeHtml(c.title)}</li>`)
+          .join('')}</ul>
+      </div>`);
+    }
+
+    if (mergedCards.length) {
+      detail.push(`<div class="qr-block">
+        <div class="qr-title">合并重复<span>${stats.merged} 处</span></div>
+        <ul class="qr-list">${mergedCards
+          .map(
+            (c) => `<li>#${c.index} ${escapeHtml(c.title)}
+              <ul class="qr-list-sub">${(c.mergedTexts || [])
+                .map((t) => `<li>${nl2br(t)}</li>`)
+                .join('')}</ul></li>`
+          )
+          .join('')}</ul>
+      </div>`);
+    }
+
+    if (stats.caveats || stats.disclaimers) {
+      detail.push(`<div class="qr-block">
+        <div class="qr-title">保真处理</div>
+        <div class="qr-sum">口径提示 ${stats.caveats} 张${
+          stats.disclaimers
+            ? ` · 原文声明 ${stats.disclaimers} 段已逐字保留`
+            : ' · 原文无免责声明'
+        } · 解释取自原文 ${produced - stats.plainGaps} 张 / 原文未提供 ${stats.plainGaps} 张</div>
+      </div>`);
+    }
+
+    return `
+    <details class="quality">
+      <summary class="quality-summary">
+        <span class="quality-dot"></span>
+        引擎处理 · ${produced} 张卡片
+        <span class="quality-hint">展开可看到候选为什么被拒、哪些解释是原文没写的</span>
+      </summary>
+      <div class="quality-body">
+        ${detail.join('')}
+        <div class="qr-block qr-foot">耗时 ${stats.elapsed}ms</div>
+      </div>
+    </details>`;
   }
 
-  /* ---------- 导出 ---------- */
+  /* ---------- 导出与入库 ---------- */
 
-  function toMarkdown() {
-    const lines = [];
-    if (state.stats) {
-      lines.push(`> 原文：${state.sourceName || '粘贴的文本'}`);
-      lines.push(`> 小节 ${state.stats.sections} · 候选 ${state.stats.candidates} · 通过判定 ${state.stats.qualified} · 合并重复 ${state.stats.merged}`);
-      lines.push('');
-      lines.push('---');
-      lines.push('');
-    }
+  function exportMeta() {
+    return {
+      sourceName: state.sourceName || '粘贴的文本',
+      stats: state.stats,
+      disclaimers: state.disclaimers
+    };
+  }
 
-    let currentSection = null;
-    for (const c of state.cards) {
-      if (c.section !== currentSection && state.cards.length > 25) {
-        if (currentSection !== null) lines.push('');
-        lines.push(`## ${c.section}`);
-        lines.push('');
-        currentSection = c.section;
-      }
-      lines.push(`### 卡片 ${c.index} / Card ${c.index}. ${c.title}`);
-      lines.push('');
-      lines.push('**核心知识 / Core knowledge**');
-      lines.push(c.core);
-      lines.push('');
-      lines.push('**简明解释 / Plain explanation**');
-      lines.push(c.plain);
-      lines.push(`_解释来源：${c.plainSource || '原文未提供'}_`);
-      lines.push('');
-      if (c.caveat && c.caveat.trim()) {
-        lines.push('**口径提示 / Caveat**');
-        lines.push(c.caveat);
-        lines.push('');
-      }
-      lines.push(`**${c.exampleLabel}**`);
-      lines.push(c.example);
-      lines.push('');
-    }
+  el.btnCopy.addEventListener('click', async () => {
+    const md = Exporters.toMarkdown(state.cards, exportMeta());
+    if (await UI.copy(md)) flash(el.btnCopy, '已复制');
+    else toast('剪贴板不可用，请改用「下载 .md」', 'err');
+  });
 
-    lines.push('---');
-    lines.push(`**卡片数 / Cards**: ${state.cards.length}`);
-    lines.push(`**来源 / Source**: ${state.sourceName || '粘贴的文本'}`);
-    lines.push(
-      `**未收录 / Omitted**: ${state.stats && state.stats.rejected ? `${state.stats.rejected} 段未通过资格判定（计划、框架句或无实质内容）` : '无'}`
+  el.btnDownload.addEventListener('click', () => {
+    const base = (state.sourceName || 'cards').replace(/\.[^.]+$/, '');
+    UI.download(
+      `${base}-知识卡片.md`,
+      Exporters.toMarkdown(state.cards, exportMeta()),
+      'text/markdown;charset=utf-8'
     );
-    if (state.stats && state.stats.merged) {
-      lines.push(`**去重 / Deduplicated**: 合并 ${state.stats.merged} 处重复论述`);
-    }
-    if (state.disclaimers && state.disclaimers.length) {
-      lines.push(`**来源声明 / Source disclaimer**: ${state.disclaimers.join(' ')}`);
-    }
-    if (state.stats && state.stats.plainGaps) {
-      lines.push(
-        `**解释缺口 / Gaps**: ${state.stats.plainGaps} 张卡片的解释在原文中没有可引用的推导，已逐张标注「原文未提供」`
-      );
-    }
-    lines.push('');
-    lines.push('> 由 article-to-knowledge-cards 本地生成 · 规则引擎版');
-    return lines.join('\n');
-  }
+  });
+
+  el.btnSave.addEventListener('click', () => {
+    if (!state.cards.length) return;
+    const src = Store.addSource({
+      name: state.sourceName || '粘贴的文本',
+      text: state.sourceText || el.source.value,
+      disclaimers: state.disclaimers,
+      kind: state.sourceName ? 'file' : 'paste'
+    });
+    const added = Store.addCards(src.id, state.cards);
+    state.saved = true;
+    refreshBadges();
+    el.btnSave.disabled = true;
+    toast(`已存入卡片库：${added.length} 张`, 'ok', {
+      label: '去看卡片库',
+      onClick: () => showTab('library')
+    });
+  });
 
   /* ---------- 提示词 ---------- */
 
@@ -350,11 +435,11 @@
     '规则（必须逐条遵守）：',
     '1. 先读完整篇原文再选卡，不要从局部读到的内容里挑。',
     '2. 只有「能被原文反驳」的断言才可成卡：事实、机制、规则、结论、数字。',
-    '   计划、待办、预测、未决问题不做卡，但要在 footer 的「未收录」行写明为什么没做。',
+    '计划、待办、预测、未决问题不做卡，但要在 footer 的「未收录」行写明为什么没做。',
     '3. 不引入原文之外的信息：不补教科书定义、不补真实统计数字、不补原文没提的名字与机构。',
     '4. 例子只能来自原文，或是原文数字的显式算式（写出算式）。否则改出自测题。',
     '5. 一张卡一个知识点。同一主张的不同表述合并成一张；共享一句原文但各自带不同数字或结论的，分开成卡。',
-    '6. 原文的免责声明、虚构标记、数据时效声明必须逐字带到footer，并重复进带数字卡片的「口径提示」。',
+    '6. 原文的免责声明、虚构标记、数据时效声明必须逐字带到 footer，并重复进带数字卡片的「口径提示」。',
     '7. 原文自相矛盾时保留冲突并标注，不要替原文和稀泥。',
     '8. 卡片总数上限 128，没有下限也没有指标：原文支持几张就出几张，绝不凑数，也绝不把一个知识点拆成两张。',
     '输出：Markdown 渲染文本（不要代码块围栏），每张卡依次为',
@@ -375,65 +460,31 @@
     ].join('\n');
 
     if (state.sourceName || !text) return head;
-    if (text.length > 3000) {
-      return `${head}\n\n正文（${text.length} 字符，超过 3000，请分批粘贴并保持编号连续）：\n${text.slice(0, 3000)}\n……（其余部分我会继续粘贴）`;
+    if (text.length > PROMPT_INLINE_LIMIT) {
+      return `${head}\n\n正文（${text.length} 字符，超过 ${PROMPT_INLINE_LIMIT}，请分批粘贴并保持编号连续）：\n${text.slice(0, PROMPT_INLINE_LIMIT)}\n……（其余部分我会继续粘贴）`;
     }
     return `${head}\n\n正文：\n${text}`;
   }
 
   el.btnPrompt.addEventListener('click', async () => {
-    const text = el.source.value.trim();
-    if (!text && !state.sourceName) {
+    if (!el.source.value.trim() && !state.sourceName) {
       showError('请先粘贴文章或选择文件，提示词需要带上来源。');
       return;
     }
-    const prompt = buildPrompt();
-    try {
-      await navigator.clipboard.writeText(prompt);
+    if (await UI.copy(buildPrompt())) {
       flash(el.btnPrompt, '提示词已复制');
       showError('');
-    } catch (e) {
+    } else {
       showError('剪贴板不可用，请手动选取。');
     }
   });
 
-  el.btnCopy.addEventListener('click', async () => {
-    const md = toMarkdown();
-    try {
-      await navigator.clipboard.writeText(md);
-      flash(el.btnCopy, '已复制');
-    } catch (e) {
-      // 剪贴板不可用时降级为选中提示
-      flash(el.btnCopy, '复制失败，请手动选取');
-    }
-  });
-
-  el.btnDownload.addEventListener('click', () => {
-    const md = toMarkdown();
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const base = (state.sourceName || 'cards').replace(/\.[^.]+$/, '');
-    a.href = url;
-    a.download = `${base}-知识卡片.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    flash(el.btnDownload, '已下载');
-  });
-
-  function flash(btn, msg) {
-    const old = btn.textContent;
-    btn.textContent = msg;
-    setTimeout(() => {
-      btn.textContent = old;
-    }, 1600);
-  }
-
   /* ---------- 快捷键 ---------- */
 
   document.addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(tag) || (e.target && e.target.isContentEditable);
+    if (typing) return;
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       if (!el.btnGenerate.disabled) el.btnGenerate.click();
@@ -442,11 +493,28 @@
 
   /* ---------- 初始化 ---------- */
 
-  updateCharCount();
-  renderEmpty();
+  function boot() {
+    bindTabs();
+    Library.init({ onChange: refreshBadges });
+    Review.init({ onChange: refreshBadges });
+    updateCharCount();
+    renderEmpty();
+    refreshBadges();
+    // Tauri 环境暴露给后端（用 getter，state 会被整体替换，持有引用会失效）
+    if (typeof window !== 'undefined') {
+      window.__app = {
+        get state() { return state; },
+        Engine,
+        Store,
+        Scheduler,
+        Exporters
+      };
+    }
+  }
 
-  // Tauri 环境暴露给后端（用 getter，state 会被整体替换，持有引用会失效）
-  if (typeof window !== 'undefined') {
-    window.__app = { get state() { return state; }, Engine };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
   }
 })();

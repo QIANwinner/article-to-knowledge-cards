@@ -19,6 +19,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PY="C:/Users/21889/.workbuddy/binaries/python/versions/3.13.12/python.exe"
+NODE="C:/Users/21889/.workbuddy/binaries/node/versions/22.22.2-6/node.exe"
 export PATH="$HOME/.cargo/bin:$PATH"
 export RUSTFLAGS="--cfg has_std"
 
@@ -38,13 +39,17 @@ if ! command -v link.exe >/dev/null 2>&1 && [ ! -f "/c/Program Files (x86)/Micro
   exit 1
 fi
 
-echo "[1/4] 读取版本号..."
+echo "[1/5] 版本号一致性..."
 cd "$ROOT"
-VERSION="$(node -p "require('./package.json').version")"
+"$NODE" scripts/check-version.js
+echo ""
+
+echo "[2/5] 读取版本号..."
+VERSION="$("$NODE" -p "require('./package.json').version")"
 echo "  package.json 版本：$VERSION"
 
 echo ""
-echo "[2/4] cargo build --release（首次约 10-25 分钟，之后约 1-2 分钟）..."
+echo "[3/5] cargo build --release（首次约 10-25 分钟，之后约 1-2 分钟）..."
 cd "$ROOT/src-tauri"
 cargo build --release 2>&1 | tail -8
 
@@ -52,7 +57,7 @@ EXE="target/release/knowledge-cards.exe"
 [ -f "$EXE" ] || { echo "[x] 编译失败，未产出 exe"; exit 1; }
 
 echo ""
-echo "[3/4] 收集产物..."
+echo "[4/5] 收集产物..."
 mkdir -p "$ROOT/release"
 cp "$EXE" "$ROOT/release/knowledge-cards.exe"
 # 带版本号的副本只作为 Release 附件，不入库（仓库里不重复存二进制）
@@ -73,7 +78,7 @@ echo "  直接双击运行，无需安装。"
 echo "=============================================="
 echo ""
 
-echo "[4/4] 校验 gitignore..."
+echo "[5/5] 校验 gitignore..."
 cd "$ROOT"
 if git check-ignore -q release/knowledge-cards.exe 2>/dev/null; then
   echo "  [!] 被 .gitignore 排除，需检查规则"

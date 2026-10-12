@@ -1,6 +1,6 @@
 ---
 name: make-knowledge-cards
-description: Convert a pasted article or a local Markdown/TXT file into up to 128 knowledge cards, each carrying exactly one idea with a title, the core knowledge, a plain explanation, and either a concrete example drawn from the source or a self-test question. This skill should be used when the user asks to turn an article, blog post, report, documentation, or reading notes into knowledge cards, flashcards, 知识卡片, 读书卡片, or asks to "make cards out of this article", "做成一组卡片", "生成知识卡". Applies to text pasted in the conversation and to .md or .txt files on disk. Long sources are split into themed batches so no single reply is overwhelming. It does not fetch web pages, does not process PDF or office documents, does not export to Anki, and does not build graphical interfaces.
+description: Convert a pasted article or a local Markdown/TXT file into up to 128 knowledge cards, each carrying exactly one idea with a title, the core knowledge, a plain explanation, and either a concrete example drawn from the source or a self-test question. This skill should be used when the user asks to turn an article, blog post, report, documentation, or reading notes into knowledge cards, flashcards, 知识卡片, 读书卡片, or asks to "make cards out of this article", "做成一组卡片", "生成知识卡". Applies to text pasted in the conversation and to .md or .txt files on disk. Long sources are split into themed batches so no single reply is overwhelming. It does not fetch web pages, does not process PDF or office documents, and does not write .apkg or flashcard-app files itself — the repository's bundled GUI handles Anki/JSON/Obsidian export and spaced review. It does not build graphical interfaces.
 ---
 
 # Make Knowledge Cards
@@ -23,7 +23,7 @@ The hard part is not formatting. It is selection: deciding what is worth remembe
 
 - Web page fetching or URL scraping
 - PDF, DOCX, XLSX, PPTX, image, or audio input
-- Export to Anki or any flashcard-app format (`.apkg`, import CSV)
+- Writing `.apkg` files or flashcard-app import files. **This skill outputs Markdown only.** When the user wants Anki, JSON, or Obsidian output, say that the bundled GUI does it: the same cards can be exported from the local app without regenerating them. Do not hand-roll a CSV or `.apkg` in chat output.
 - Graphical interfaces, web pages, or interactive apps
 
 When the input is out of scope, name the limitation and ask the user to paste the text or point to a Markdown/TXT file instead.

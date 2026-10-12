@@ -349,6 +349,8 @@ const Engine = (() => {
       const dup = kept.find((k) => similarity(k.norm, norm) > LIMITS.dedupeThreshold);
       if (dup) {
         dup.mergedFrom = (dup.mergedFrom || 1) + 1;
+        // 记下被合并掉的句子：质量报告要能回答「哪几句被算成了重复」
+        (dup.mergedTexts = dup.mergedTexts || []).push(cand.text);
         continue;
       }
       cand.norm = norm;
@@ -556,6 +558,7 @@ const Engine = (() => {
       exampleLabel,
       example,
       mergedFrom: cand.mergedFrom || 1,
+      mergedTexts: cand.mergedTexts || [],
       raw: cand.text
     };
   }
@@ -605,6 +608,7 @@ const Engine = (() => {
     return {
       cards,
       disclaimers,
+      rejected: rejected.map((r) => ({ text: r.text, section: r.section, why: r.why })),
       stats: {
         ...emptyStats(note),
         sections: sections.length,

@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  engine:
-    name: 规则引擎与 Skill 自检
+  checks:
+    name: 引擎 / 调度器 / 契约检查
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,12 +21,35 @@ jobs:
       - name: 语法检查
         run: |
           node --check src/card-engine.js
+          node --check src/store.js
+          node --check src/scheduler.js
+          node --check src/exporters.js
+          node --check src/ui.js
+          node --check src/library.js
+          node --check src/review.js
           node --check src/app.js
           node --check scripts/serve.js
+          node --check scripts/test-engine.js
+          node --check scripts/test-scheduler.js
+          node --check scripts/test-exporters.js
           node --check scripts/check-skill.js
+          node --check scripts/check-ui-contract.js
+          node --check scripts/check-version.js
 
-      - name: 运行引擎测试
+      - name: 版本号一致性
+        run: node scripts/check-version.js
+
+      - name: 规则引擎测试
         run: node scripts/test-engine.js
+
+      - name: 调度器与卡片库测试
+        run: node scripts/test-scheduler.js
+
+      - name: 导出格式测试
+        run: node scripts/test-exporters.js
 
       - name: Skill 结构自检
         run: node scripts/check-skill.js
+
+      - name: UI 契约自检
+        run: node scripts/check-ui-contract.js
