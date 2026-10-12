@@ -1,6 +1,6 @@
 {
   "name": "article-to-knowledge-cards",
-  "version": "0.1.5",
+  "version": "1.0.0",
   "private": true,
   "description": "文章转知识卡片 — 本地 GUI 前端（Tauri 2 + 原生 JS，零前端依赖）",
   "scripts": {

@@ -261,7 +261,7 @@
         : '';
 
     return `
-    <article class="card">
+    <article class="card" style="--i:${card.index - 1}">
       <div class="card-head">
         <span class="card-no">${card.index}</span>
         <h3 class="card-title">${escapeHtml(card.title)}</h3>

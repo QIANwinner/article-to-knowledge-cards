@@ -186,7 +186,7 @@ article-to-knowledge-cards/
 ├── .github/workflows/         # ci.yml (six check suites) + pages.yml (live demo)
 ├── src/                       # frontend source, also the Pages publish directory
 │   ├── index.html             # three-tab shell
-│   ├── styles.css             # dark research theme (contrast-verified palette)
+│   ├── styles.css             # Liquid Glass design system (degradation paths documented in-file)
 │   ├── card-engine.js         # the rule engine (no LLM)
 │   ├── store.js               # card library + local persistence
 │   ├── scheduler.js           # spaced repetition (SM-2 variant)
@@ -204,7 +204,23 @@ article-to-knowledge-cards/
 └── tests/samples/             # fixtures (fictional data)
 ```
 
-**Stack**: plain HTML + CSS + JavaScript (no framework, no build step) inside a Tauri 2 shell. React + Vite would add hundreds of `node_modules` and a build layer for an interface that does three things — text input, card rendering, Markdown export.
+**Stack**: plain HTML + CSS + JavaScript (no framework, no build step) inside a Tauri 2 shell. React + Vite would add hundreds of `node_modules` and a build layer for an interface that does four things — text input, card rendering, library management, review scheduling.
+
+### Visual language: Liquid Glass
+
+Translucent frosted surfaces, but **the glass serves hierarchy, it doesn't steal focus**. Three constraints are documented at the top of `styles.css` and must not be broken:
+
+| Constraint | Why |
+|---|---|
+| Animate only `transform` / `opacity` | Animating `width`, `height` or `top` triggers layout reflow; with a few dozen cards it drops frames |
+| `backdrop-filter` only on large, few surfaces | Masthead, panel backing, toolbars, toasts. Cards simulate glass with a translucent fill plus a stroke — dozens of live blur layers will drop mobile below 30fps |
+| Text over glass must stay ≥ 4.5:1 | Glass is translucent: the effective background shifts with the ambient light blobs behind it |
+
+The effect is built from four layers: ambient light blobs (the refraction source — without light and dark behind it, blur and highlights mean nothing), a specular top edge (`inset 0 1px 0`, where the sense of thickness comes from), a sheen that sweeps across on hover, and a fine grain overlay that kills gradient banding on 8-bit displays.
+
+Motion covers panel transitions, staggered card entry, a 2px card lift on hover, button press scale, the expanding tab indicator, a 3D flip when a review answer is revealed, springy toast entry, a short shake on errors, and a breathing badge for due cards. Entry stagger is capped with `calc(min(var(--i, 0), 11) * 34ms)` — without the cap, card 100 would wait 3.4 seconds to appear.
+
+Degradation is real, not decorative: `prefers-reduced-motion` returns everything to a static end state and hides the sheen; `prefers-reduced-transparency` drops blur and translucency and hides the light blobs; `prefers-contrast: more` thickens strokes to 2px; browsers without `backdrop-filter` fall back to opaque surfaces — losing the material is better than losing the hierarchy. Light and dark follow the system via `prefers-color-scheme`.
 
 ### The card library and review loop
 
@@ -287,7 +303,7 @@ No `npm install` needed. Four fictional fixtures × 13 constraints, plus dedicat
 | Code block placement | Fenced blocks are skipped; the Skill's "code to Example, compiler errors to core knowledge" rule is executed by the model |
 | No browser render tests | `check:ui` is static only; real rendering and interaction need a manual pass |
 | Review algorithm uncalibrated | Fixed-parameter SM-2 variant. Worth moving to calibrated FSRS once you have a hundred cards and real review history |
-| Dark theme only | `--text-faint` was raised to 4.9:1 to meet WCAG AA, but there is no light theme and no English UI yet |
+| Chinese-only UI | The English README is here; the interface itself has no i18n yet |
 
 Data boundaries: cards and sources live in the browser's `localStorage`. **Switching browsers, clearing site data, or closing a private window loses them** — export a JSON backup for anything important. When `localStorage` is unavailable the app degrades to an in-memory library and says so in the footer rather than failing silently. The Tauri build uses the same WebView storage, so its data does not sync with the browser build; move it with the JSON backup.
 

@@ -125,7 +125,7 @@ const Library = (() => {
       return;
     }
 
-    deck.innerHTML = cards.map(cardHtml).join('');
+    deck.innerHTML = cards.map((c, i) => cardHtml(c, i)).join('');
   }
 
   function cardHtml(c) {
@@ -135,7 +135,7 @@ const Library = (() => {
     const due = Scheduler.dueLabel(c);
 
     return `
-    <article class="card lib-card" data-id="${escapeHtml(c.id)}">
+    <article class="card lib-card" data-id="${escapeHtml(c.id)}" style="--i:${Math.min(i, 11)}">
       <div class="card-head">
         <span class="card-no">${c.index}</span>
         <h3 class="card-title">${escapeHtml(c.title)}</h3>
