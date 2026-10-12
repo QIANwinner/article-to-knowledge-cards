@@ -224,6 +224,71 @@ console.log('\n[5] 交互动作契约');
   check(orphan.length === 0, `${declared.size} 个 data-action 都有处理分支` + (orphan.length ? `  漏：${orphan.join(', ')}` : ''));
 }
 
+/* ---------- 6. 样式表结构 ---------- */
+console.log('\n[6] 样式表结构');
+
+{
+  // 括号错字会让整份样式表静默失效，而 class 名检查抓不到这种问题——必须单独数一遍。
+  // 先剥掉注释与字符串，否则 data URI 里的括号会污染计数。
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/"[^"]*"/g, '""');
+  let depth = 0;
+  let extra = 0;
+  for (const ch of stripped) {
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth < 0) extra++;
+    }
+  }
+  check(depth === 0 && extra === 0, `花括号平衡（残余 ${depth}，多余 ${extra}）`);
+
+  const defined = [...css.matchAll(/@keyframes\s+([A-Za-z][\w-]*)/g)].map((m) => m[1]);
+  const used = [
+    ...new Set(
+      [...css.matchAll(/animation(?:-name)?:\s*([A-Za-z][\w-]*)/g)]
+        .map((m) => m[1])
+        .filter((n) => !['none', 'var', 'both', 'infinite'].includes(n))
+    )
+  ];
+  const orphan = used.filter((n) => !defined.includes(n));
+  check(
+    orphan.length === 0,
+    `${used.length} 个引用的动画名都有定义` +
+      (orphan.length ? `  未定义：${orphan.join(', ')}` : '')
+  );
+
+  // 动效只允许碰 transform / opacity / filter / color ——碰布局属性会触发重排
+  const layoutTouch = [
+    ...new Set(
+      [...css.matchAll(/transition:\s*([^;]+);/g)]
+        .map((m) => m[1])
+        .filter((s) => /(width|height|top|left|right|bottom|margin|padding)/.test(s))
+    )
+  ];
+  check(
+    layoutTouch.length === 0,
+    layoutTouch.length === 0
+      ? 'transition 未涉及任何布局属性'
+      : `transition 涉及布局属性：${layoutTouch.join(' | ')}`
+  );
+
+  // 自定义属性必须有定义（拼错不会报错，只会静默失效）。
+  // 例外：var(--x, fallback) 自带兜底值，不需要在 :root 里声明——
+  // --i 就属于这一类，它由 JS 写在卡片的内联 style 上。
+  const varUses = [...css.matchAll(/var\(\s*(--[\w-]+)\s*([,)])/g)];
+  const noFallback = new Set(varUses.filter((m) => m[2] === ')').map((m) => m[1]));
+  const defVars = new Set([...css.matchAll(/^\s*(--[\w-]+)\s*:/gm)].map((m) => m[1]));
+  const missingVars = [...noFallback].filter((v) => !defVars.has(v));
+  check(
+    missingVars.length === 0,
+    `${defVars.size} 个 CSS 变量全部有声明` +
+      (missingVars.length ? `  未定义且无兜底：${missingVars.join(', ')}` : '')
+  );
+
+  const glassCount = (css.match(/backdrop-filter/g) || []).length;
+  check(glassCount > 0, `backdrop-filter 使用 ${glassCount} 处（应只出现在大面积表面上）`);
+}
+
 /* ---------- 汇总 ---------- */
 
 if (warnings.length) {
