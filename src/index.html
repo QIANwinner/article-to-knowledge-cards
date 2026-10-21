@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="color-scheme" content="dark" />
-<meta name="theme-color" content="#0b0e14" />
+<meta name="color-scheme" content="dark light" />
+<meta name="theme-color" content="#0c0c0d" />
 <title>文章转知识卡片</title>
 <meta name="description" content="把文章或本地 Markdown / TXT 转成知识卡片。本地运行，不联网，不编造原文没有的信息。" />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234b6bff'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'%3E%3Crect x='7' y='8' width='12' height='16' rx='2'/%3E%3Cpath d='M21 12h4M21 18h4M21 24h4'/%3E%3C/g%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c0c0d'/%3E%3Crect x='9' y='9' width='14' height='14' rx='3' fill='none' stroke='%236d8bff' stroke-width='2'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -16,15 +16,19 @@
   <header class="masthead">
     <div class="masthead-row">
       <h1>文章转知识卡片</h1>
-      <p class="tagline">粘贴文章，或选择本地 Markdown / TXT，生成最多 128 张单知识点卡片</p>
+      <p class="tagline">粘贴文章或选择本地 Markdown / TXT，生成最多 128 张单知识点卡片</p>
     </div>
     <nav class="tabs" role="tablist" aria-label="主导航">
-      <button class="tab is-active" id="tab-make" role="tab" aria-selected="true" aria-controls="panel-make" type="button">生成</button>
+      <button class="tab is-active" id="tab-make" role="tab" aria-selected="true" aria-controls="panel-make" type="button">
+        <span class="tab-ico" data-icon="wand"></span><span>生成</span>
+      </button>
       <button class="tab" id="tab-library" role="tab" aria-selected="false" aria-controls="panel-library" type="button">
-        卡片库 <span class="tab-badge" id="badge-library">0</span>
+        <span class="tab-ico" data-icon="stack"></span><span>卡片库</span>
+        <span class="tab-badge" id="badge-library">0</span>
       </button>
       <button class="tab" id="tab-review" role="tab" aria-selected="false" aria-controls="panel-review" type="button">
-        复习 <span class="tab-badge is-warn" id="badge-due">0</span>
+        <span class="tab-ico" data-icon="clock"></span><span>复习</span>
+        <span class="tab-badge" id="badge-due">0</span>
       </button>
     </nav>
   </header>
@@ -37,11 +41,13 @@
         <div class="panel-head">
           <h2>原文</h2>
           <div class="panel-actions">
-            <label class="btn btn-ghost" for="file-input">
-              选择文件
+            <label class="btn btn-ghost btn-sm" for="file-input">
+              <span data-icon="upload"></span><span>选择文件</span>
               <input type="file" id="file-input" accept=".md,.markdown,.txt" hidden />
             </label>
-            <button class="btn btn-ghost" id="btn-clear" type="button">清空</button>
+            <button class="btn btn-ghost btn-sm" id="btn-clear" type="button">
+              <span data-icon="eraser"></span><span>清空</span>
+            </button>
           </div>
         </div>
 
@@ -58,8 +64,12 @@
           spellcheck="false"></textarea>
 
         <div class="generate-row">
-          <button class="btn btn-primary" id="btn-generate" type="button">生成卡片</button>
-          <button class="btn btn-ghost" id="btn-prompt" type="button" title="复制一段可直接投喂模型的提示词，由模型补齐语义解释">复制提示词</button>
+          <button class="btn btn-primary" id="btn-generate" type="button">
+            <span data-icon="wand"></span><span>生成卡片</span>
+          </button>
+          <button class="btn btn-ghost" id="btn-prompt" type="button" title="复制一段可直接投喂模型的提示词，由模型补齐语义解释">
+            <span data-icon="copy"></span><span>复制提示词</span>
+          </button>
           <div class="generate-hint" id="gen-hint">每张卡一个知识点，不编造原文没有的信息</div>
         </div>
 
@@ -71,9 +81,15 @@
           <h2>知识卡片</h2>
           <div class="panel-actions">
             <div class="export-group">
-              <button class="btn btn-ghost" id="btn-copy" type="button" disabled>复制</button>
-              <button class="btn btn-ghost" id="btn-download" type="button" disabled>下载 .md</button>
-              <button class="btn btn-primary btn-sm" id="btn-save" type="button" disabled title="把这批卡片存入本地卡片库">存入卡片库</button>
+              <button class="btn btn-ghost btn-sm" id="btn-copy" type="button" disabled>
+                <span data-icon="copy"></span><span>复制</span>
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btn-download" type="button" disabled>
+                <span data-icon="download"></span><span>下载 .md</span>
+              </button>
+              <button class="btn btn-primary btn-sm" id="btn-save" type="button" disabled title="把这批卡片存入本地卡片库">
+                <span data-icon="plus"></span><span>存入卡片库</span>
+              </button>
             </div>
           </div>
         </div>
@@ -88,7 +104,7 @@
     </section>
 
     <!-- 面板二：卡片库 -->
-    <section class="panel-view view-single" id="panel-library" role="tabpanel" aria-labelledby="tab-library" hidden>
+    <section class="panel-view" id="panel-library" role="tabpanel" aria-labelledby="tab-library" hidden>
       <div class="lib-toolbar">
         <div class="lib-toolbar-row">
           <input type="search" id="lib-search" class="lib-search" placeholder="搜索标题、核心知识或标签…" aria-label="搜索卡片" />
@@ -110,12 +126,20 @@
         <div class="lib-toolbar-row">
           <span class="lib-meta" id="lib-meta">—</span>
           <div class="export-group">
-            <button class="btn btn-ghost btn-sm" id="lib-export-md" type="button">导出 Markdown</button>
-            <button class="btn btn-ghost btn-sm" id="lib-export-anki" type="button">导出 Anki</button>
-            <button class="btn btn-ghost btn-sm" id="lib-export-json" type="button">导出 JSON</button>
-            <button class="btn btn-ghost btn-sm" id="lib-export-obs" type="button">导出 Obsidian</button>
+            <button class="btn btn-ghost btn-sm" id="lib-export-md" type="button">
+              <span data-icon="file"></span><span>Markdown</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" id="lib-export-anki" type="button">
+              <span data-icon="layers"></span><span>Anki</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" id="lib-export-json" type="button">
+              <span data-icon="braces"></span><span>JSON</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" id="lib-export-obs" type="button">
+              <span data-icon="book"></span><span>Obsidian</span>
+            </button>
             <label class="btn btn-ghost btn-sm" for="lib-import">
-              导入
+              <span data-icon="upload"></span><span>导入</span>
               <input type="file" id="lib-import" accept=".json" hidden />
             </label>
           </div>
@@ -125,7 +149,7 @@
     </section>
 
     <!-- 面板三：复习 -->
-    <section class="panel-view view-single" id="panel-review" role="tabpanel" aria-labelledby="tab-review" hidden>
+    <section class="panel-view" id="panel-review" role="tabpanel" aria-labelledby="tab-review" hidden>
       <div class="review-wrap">
         <div class="review-head">
           <span class="review-count" id="review-count">0 / 0</span>
@@ -140,11 +164,15 @@
   <footer class="appfoot">
     <span class="foot-storage" id="foot-storage">本地存储</span>
     <span class="dot">·</span>
-    <span>原文不会离开这台机器</span>
+    <span class="foot-quiet">原文不会离开这台机器</span>
     <span class="dot">·</span>
-    <a href="https://github.com/QIANwinner/article-to-knowledge-cards" target="_blank" rel="noopener">源码</a>
+    <a href="https://github.com/QIANwinner/article-to-knowledge-cards" target="_blank" rel="noopener">
+      <span data-icon="code"></span><span>源码</span>
+    </a>
     <span class="dot">·</span>
-    <a href="https://github.com/QIANwinner/article-to-knowledge-cards/releases" target="_blank" rel="noopener">下载 exe</a>
+    <a href="https://github.com/QIANwinner/article-to-knowledge-cards/releases" target="_blank" rel="noopener">
+      <span data-icon="monitor"></span><span>下载 exe</span>
+    </a>
     <span class="dot">·</span>
     <span>MIT License</span>
   </footer>
@@ -154,6 +182,7 @@
 <div class="toast" id="toast-slot" role="status" aria-live="polite" hidden></div>
 
 <script src="card-engine.js"></script>
+<script src="icons.js"></script>
 <script src="store.js"></script>
 <script src="scheduler.js"></script>
 <script src="exporters.js"></script>

@@ -21,6 +21,7 @@ jobs:
       - name: 语法检查
         run: |
           node --check src/card-engine.js
+          node --check src/icons.js
           node --check src/store.js
           node --check src/scheduler.js
           node --check src/exporters.js

@@ -110,6 +110,18 @@ const UI = (() => {
     return escapeHtml(s).replace(/\n/g, '<br>');
   }
 
+  /** 把 <span data-icon="name"> 换成真正的 SVG 路径 */
+  function hydrateIcons(root) {
+    if (typeof Icons === 'undefined') return;
+    const scope = root || document;
+    const nodes = scope.querySelectorAll('[data-icon]');
+    for (const el of nodes) {
+      const name = el.getAttribute('data-icon');
+      const size = el.getAttribute('data-icon-size') || (el.classList.contains('tab-ico') ? 16 : 15);
+      el.innerHTML = Icons.icon(name, { size: Number(size) });
+    }
+  }
+
   return {
     $,
     escapeHtml,
@@ -121,7 +133,8 @@ const UI = (() => {
     confirm,
     readFileAsText,
     relativeTime,
-    nl2br
+    nl2br,
+    hydrateIcons
   };
 })();
 

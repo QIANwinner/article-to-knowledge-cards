@@ -9,13 +9,13 @@
 const Library = (() => {
   'use strict';
 
-  const { escapeHtml, toast, flash, download, confirm, readFileAsText, relativeTime, nl2br } = UI;
+  const { escapeHtml, toast, flash, download, confirm, readFileAsText, relativeTime, nl2br, hydrateIcons } = UI;
 
   const STATUS_META = {
-    new: { label: '未复习', cls: 'st-new' },
-    learning: { label: '学习中', cls: 'st-learning' },
-    review: { label: '复习中', cls: 'st-review' },
-    mastered: { label: '已掌握', cls: 'st-mastered' }
+    new: { label: '未复习', cls: 'st-new', ico: 'sparkle' },
+    learning: { label: '学习中', cls: 'st-learning', ico: 'rotate' },
+    review: { label: '复习中', cls: 'st-review', ico: 'clock' },
+    mastered: { label: '已掌握', cls: 'st-mastered', ico: 'check' }
   };
 
   let onChange = () => {};
@@ -107,15 +107,9 @@ const Library = (() => {
     if (!all.length) {
       deck.innerHTML = `
         <div class="empty-state">
-          <div class="empty-icon" aria-hidden="true">
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="7" y="10" width="14" height="28" rx="2" />
-              <rect x="24" y="10" width="17" height="13" rx="2" />
-              <rect x="24" y="26" width="17" height="12" rx="2" />
-            </svg>
-          </div>
+          <div class="empty-icon" aria-hidden="true">${Icons.icon('stack', { size: 24 })}</div>
           <p class="empty-title">卡片库还是空的</p>
-          <p class="empty-sub">在「生成」页做出一批卡片后点「存入卡片库」</p>
+          <p class="empty-sub">在「生成」页做出一批卡片，点「存入卡片库」就能在这里编辑、导出与复习。</p>
         </div>`;
       return;
     }
@@ -126,33 +120,40 @@ const Library = (() => {
     }
 
     deck.innerHTML = cards.map((c, i) => cardHtml(c, i)).join('');
+    hydrateIcons(deck);
   }
 
-  function cardHtml(c) {
+  function cardHtml(c, i) {
     const st = Scheduler.stateOf(c);
     const meta = STATUS_META[st.status] || STATUS_META.new;
     const src = Store.getSource(c.sourceId);
     const due = Scheduler.dueLabel(c);
 
     return `
-    <article class="card lib-card" data-id="${escapeHtml(c.id)}" style="--i:${Math.min(i, 11)}">
+    <article class="card" data-id="${escapeHtml(c.id)}" style="--i:${Math.min(i, 8)}">
       <div class="card-head">
         <span class="card-no">${c.index}</span>
         <h3 class="card-title">${escapeHtml(c.title)}</h3>
-        <span class="status-pill ${meta.cls}">${meta.label}</span>
+        <span class="status-pill ${meta.cls}">${Icons.icon(meta.ico, { size: 11 })}<span>${meta.label}</span></span>
         <span class="card-due">${escapeHtml(due)}</span>
       </div>
 
       <div class="lib-actions">
-        <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${escapeHtml(c.id)}" type="button">编辑</button>
-        <button class="btn btn-ghost btn-sm" data-action="master" data-id="${escapeHtml(c.id)}" type="button">${
-          st.status === 'mastered' ? '取消掌握' : '标记已掌握'
-        }</button>
-        <button class="btn btn-ghost btn-sm" data-action="source" data-id="${escapeHtml(c.id)}" type="button">查看原文</button>
-        <button class="btn btn-ghost btn-sm is-danger" data-action="delete" data-id="${escapeHtml(c.id)}" type="button">删除</button>
+        <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${escapeHtml(c.id)}" type="button">
+          ${Icons.icon('edit', { size: 13 })}<span>编辑</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" data-action="master" data-id="${escapeHtml(c.id)}" type="button">
+          ${Icons.icon(st.status === 'mastered' ? 'rotate' : 'check', { size: 13 })}<span>${st.status === 'mastered' ? '取消掌握' : '标记已掌握'}</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" data-action="source" data-id="${escapeHtml(c.id)}" type="button">
+          ${Icons.icon('quote', { size: 13 })}<span>查看原文</span>
+        </button>
+        <button class="btn btn-ghost btn-sm is-danger" data-action="delete" data-id="${escapeHtml(c.id)}" type="button">
+          ${Icons.icon('trash', { size: 13 })}<span>删除</span>
+        </button>
       </div>
 
-      <div class="card-body">
+      <div data-body>
         <div class="field field-core">
           <span class="field-label">核心知识 / Core knowledge</span>
           <p class="field-body">${nl2br(c.core)}</p>
@@ -176,8 +177,8 @@ const Library = (() => {
           .map((t) => `<span class="lib-tag">#${escapeHtml(t)}</span>`)
           .join('')}</div>` : ''}
         <div class="card-foot">
-          来源：${escapeHtml(src ? src.name : '（已删除）')} · 小节：${escapeHtml(c.section || '正文')} ·
-          复习 ${st.reviewCount} 次 · 间隔 ${st.interval} 天 · ease ${st.ease} · 入库 ${relativeTime(c.createdAt)}
+          <span>来源：${escapeHtml(src ? src.name : '（已删除）')} · 小节：${escapeHtml(c.section || '正文')}</span>
+          <span class="foot-right">复习 ${st.reviewCount} 次 · 间隔 ${st.interval} 天 · 入库 ${relativeTime(c.createdAt)}</span>
         </div>
         <div class="lib-source-text" hidden>
           <span class="field-label">原文句（卡片就是从这一句切出来的）</span>
@@ -192,9 +193,9 @@ const Library = (() => {
   function startEdit(id, deck) {
     const c = Store.getCard(id);
     if (!c) return;
-    const card = deck.querySelector(`.lib-card[data-id="${CSS.escape(id)}"]`);
+    const card = deck.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
     if (!card) return;
-    const body = card.querySelector('.card-body');
+    const body = card.querySelector('[data-body]');
     body.innerHTML = `
       <div class="card-editor">
         <label class="ed-row"><span>标题</span><input type="text" data-f="title" value="${escapeHtml(c.title || '')}" /></label>
@@ -204,18 +205,23 @@ const Library = (() => {
         <label class="ed-row"><span>${escapeHtml(c.exampleLabel || '例子 / Example')}</span><textarea data-f="example" rows="2">${escapeHtml(c.example || '')}</textarea></label>
         <label class="ed-row"><span>标签</span><input type="text" data-f="tags" placeholder="逗号分隔，如：缓存, 性能" value="${escapeHtml((c.tags || []).join(', '))}" /></label>
         <div class="ed-actions">
-          <button class="btn btn-primary btn-sm" data-action="save-edit" data-id="${escapeHtml(id)}" type="button">保存</button>
-          <button class="btn btn-ghost btn-sm" data-action="cancel-edit" type="button">取消</button>
+          <button class="btn btn-primary btn-sm" data-action="save-edit" data-id="${escapeHtml(id)}" type="button">
+            ${Icons.icon('check', { size: 13 })}<span>保存</span>
+          </button>
+          <button class="btn btn-ghost btn-sm" data-action="cancel-edit" type="button">
+            ${Icons.icon('x', { size: 13 })}<span>取消</span>
+          </button>
           <span class="ed-hint">改了简明解释后，「原文未提供」标记会自动解除</span>
         </div>
       </div>`;
+    hydrateIcons(body);
     body.querySelector('[data-f="plain"]').focus();
   }
 
   function saveEdit(id, deck) {
     const c = Store.getCard(id);
     if (!c) return;
-    const card = deck.querySelector(`.lib-card[data-id="${CSS.escape(id)}"]`);
+    const card = deck.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
     if (!card) return;
     const val = (f) => {
       const el = card.querySelector(`[data-f="${f}"]`);
@@ -291,7 +297,7 @@ const Library = (() => {
   function showSource(id) {
     const c = Store.getCard(id);
     if (!c) return;
-    const card = document.querySelector(`.lib-card[data-id="${CSS.escape(id)}"]`);
+    const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
     if (!card) return;
     const box = card.querySelector('.lib-source-text');
     if (!box) return;

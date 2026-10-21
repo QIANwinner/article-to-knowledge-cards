@@ -12,7 +12,7 @@
 (() => {
   'use strict';
 
-  const { escapeHtml, flash, toast, readFileAsText, nl2br } = UI;
+  const { escapeHtml, flash, toast, readFileAsText, nl2br, hydrateIcons } = UI;
 
   const BATCH_THRESHOLD = 25;
   const GROUP_THRESHOLD = 60;
@@ -57,10 +57,15 @@
     dueBadge.textContent = String(s.due);
     dueBadge.classList.toggle('is-hot', s.due > 0);
     const st = Store.stats();
-    el.footStorage.textContent = st.persistent
-      ? `本地存储 · ${st.cards} 张 / ${st.sources} 篇`
-      : '⚠ 仅本次会话有效（浏览器存储不可用）';
-    el.footStorage.classList.toggle('is-warn', !st.persistent);
+    if (st.persistent) {
+      el.footStorage.innerHTML =
+        Icons.icon('inbox', { size: 13 }) + `<span>本地存储 · ${st.cards} 张 / ${st.sources} 篇</span>`;
+      el.footStorage.classList.remove('is-warn');
+    } else {
+      el.footStorage.innerHTML =
+        Icons.icon('alert', { size: 13 }) + '<span>仅本次会话有效（浏览器存储不可用）</span>';
+      el.footStorage.classList.add('is-warn');
+    }
   }
 
   /* ---------- Tab 路由 ---------- */
@@ -100,7 +105,7 @@
       return;
     }
     el.errorSlot.hidden = false;
-    el.errorSlot.textContent = msg;
+    el.errorSlot.innerHTML = Icons.icon('alert', { size: 14 }) + `<span>${escapeHtml(msg)}</span>`;
   }
 
   el.source.addEventListener('input', () => {
@@ -200,15 +205,9 @@
   function renderEmpty() {
     el.deck.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon" aria-hidden="true">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="7" y="10" width="14" height="28" rx="2" />
-            <rect x="24" y="10" width="17" height="13" rx="2" />
-            <rect x="24" y="26" width="17" height="12" rx="2" />
-          </svg>
-        </div>
+        <div class="empty-icon" aria-hidden="true">${Icons.icon('cards', { size: 24 })}</div>
         <p class="empty-title">还没有卡片</p>
-        <p class="empty-sub">在左侧粘贴文章后点「生成卡片」</p>
+        <p class="empty-sub">粘贴文章或选择本地 Markdown / TXT，点「生成卡片」开始。<br />原文只在本机处理，不联网。</p>
       </div>`;
     el.deckStats.hidden = true;
   }
@@ -251,6 +250,7 @@
     }
 
     el.deck.innerHTML = html;
+    hydrateIcons(el.deck);
   }
 
   function cardHtml(card) {
@@ -373,7 +373,7 @@
     return `
     <details class="quality">
       <summary class="quality-summary">
-        <span class="quality-dot"></span>
+        <span class="quality-chevron">${Icons.icon('chevronDown', { size: 14 })}</span>
         引擎处理 · ${produced} 张卡片
         <span class="quality-hint">展开可看到候选为什么被拒、哪些解释是原文没写的</span>
       </summary>
@@ -497,6 +497,7 @@
     bindTabs();
     Library.init({ onChange: refreshBadges });
     Review.init({ onChange: refreshBadges });
+    hydrateIcons(document);
     updateCharCount();
     renderEmpty();
     refreshBadges();

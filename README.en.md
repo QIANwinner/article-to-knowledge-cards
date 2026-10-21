@@ -186,7 +186,8 @@ article-to-knowledge-cards/
 ├── .github/workflows/         # ci.yml (six check suites) + pages.yml (live demo)
 ├── src/                       # frontend source, also the Pages publish directory
 │   ├── index.html             # three-tab shell
-│   ├── styles.css             # Liquid Glass design system (degradation paths documented in-file)
+│   ├── styles.css             # visual system: near-black + single accent, 4px spacing grid
+│   ├── icons.js               # inline SVG icon set (24-grid, no emoji)
 │   ├── card-engine.js         # the rule engine (no LLM)
 │   ├── store.js               # card library + local persistence
 │   ├── scheduler.js           # spaced repetition (SM-2 variant)
@@ -206,21 +207,29 @@ article-to-knowledge-cards/
 
 **Stack**: plain HTML + CSS + JavaScript (no framework, no build step) inside a Tauri 2 shell. React + Vite would add hundreds of `node_modules` and a build layer for an interface that does four things — text input, card rendering, library management, review scheduling.
 
-### Visual language: Liquid Glass
+### Visual language
 
-Translucent frosted surfaces, but **the glass serves hierarchy, it doesn't steal focus**. Three constraints are documented at the top of `styles.css` and must not be broken:
+Near-black surfaces with a single accent colour. Hierarchy comes from weight, whitespace and hairline rules — not from piling on colours.
 
-| Constraint | Why |
-|---|---|
-| Animate only `transform` / `opacity` | Animating `width`, `height` or `top` triggers layout reflow; with a few dozen cards it drops frames |
-| `backdrop-filter` only on large, few surfaces | Masthead, panel backing, toolbars, toasts. Cards simulate glass with a translucent fill plus a stroke — dozens of live blur layers will drop mobile below 30fps |
-| Text over glass must stay ≥ 4.5:1 | Glass is translucent: the effective background shifts with the ambient light blobs behind it |
+**The colour budget is three tiers** (documented at the top of `styles.css`):
 
-The effect is built from four layers: ambient light blobs (the refraction source — without light and dark behind it, blur and highlights mean nothing), a specular top edge (`inset 0 1px 0`, where the sense of thickness comes from), a sheen that sweeps across on hover, and a fine grain overlay that kills gradient banding on 8-bit displays.
+| Role | Token | Notes |
+|---|---|---|
+| Neutral scale | `--ink-950` → `--ink-750`, five warm greys | Page ground, panels, cards, raised surfaces |
+| Accent | `--accent` (brightened Klein blue) | Appears in exactly three places: current selection, focus rings, key numbers |
+| Clay | `--clay` | Destructive actions (delete) and error messages only |
 
-Motion covers panel transitions, staggered card entry, a 2px card lift on hover, button press scale, the expanding tab indicator, a 3D flip when a review answer is revealed, springy toast entry, a short shake on errors, and a breathing badge for due cards. Entry stagger is capped with `calc(min(var(--i, 0), 11) * 34ms)` — without the cap, card 100 would wait 3.4 seconds to appear.
+Everything else is neutral plus three text greys (`--text` / `--text-2` / `--text-3`). State is never carried by a coloured pill: the three review grades (again / hard / good) are told apart by the **weight gradient** of their border and fill, and clay only lights up when you hover a delete button.
 
-Degradation is real, not decorative: `prefers-reduced-motion` returns everything to a static end state and hides the sheen; `prefers-reduced-transparency` drops blur and translucency and hides the light blobs; `prefers-contrast: more` thickens strokes to 2px; browsers without `backdrop-filter` fall back to opaque surfaces — losing the material is better than losing the hierarchy. Light and dark follow the system via `prefers-color-scheme`.
+**Spacing follows a 4px grid** — `--s-1` (4) through `--s-16` (64); every padding and gap comes from that set. The breathing room between components comes from a consistent rhythm, not from "leaving a bit more here and there". Radii are collapsed to three sizes: 6–8px for controls, 12px for cards.
+
+**Icons are inline SVG** (`src/icons.js`, 24-grid, 1.6 stroke, inheriting `currentColor`) rather than emoji — emoji are rendered by the system font, so the same character looks different on Windows and on a phone, and you cannot control stroke weight or alignment.
+
+**Motion** is short and restrained (120–320ms), touching only `transform` and `opacity`: panel cross-fade, staggered card entry (capped with `min(var(--i), 8)` — otherwise card 100 would wait 2.4 seconds), button press scale, segmented-control switch, review flip fade, springy toast entry.
+
+Degradation is real, not decorative: `prefers-reduced-motion` returns everything to a static end state; `prefers-contrast: more` thickens strokes and lifts the dim text; on narrow screens the header folds to two rows, the nav goes full-width, touch targets grow to 44px and the footer keeps only the clickable items; printing switches to black-on-white with cards that never break across pages. Light and dark follow the system via `prefers-color-scheme`.
+
+**Layout notes**: the wordmark and nav share one row (two rows on narrow screens); the source column is pinned with `clamp` so it never drifts; the card column is a fixed 860px reading measure centred in the viewport — spreading cards across 1440px reads as a web page, narrowing them to a column reads as a tool.
 
 ### The card library and review loop
 

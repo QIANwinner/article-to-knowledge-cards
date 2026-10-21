@@ -9,7 +9,7 @@
 const Review = (() => {
   'use strict';
 
-  const { escapeHtml, toast, nl2br } = UI;
+  const { escapeHtml, toast, nl2br, hydrateIcons } = UI;
 
   let queue = [];
   let pos = 0;
@@ -127,7 +127,9 @@ const Review = (() => {
                  <div class="review-hint">按 1 / 2 / 3 也可以</div>
                </div>`
             : `<div class="review-front">
-                 <button class="btn btn-primary" id="btn-reveal" type="button">显示答案</button>
+                 <button class="btn btn-primary" id="btn-reveal" type="button">
+                   ${Icons.icon('eye', { size: 15 })}<span>显示答案</span>
+                 </button>
                  <div class="review-hint">先自己回想，再翻面 —— 直接看答案等于没复习</div>
                </div>`
         }
@@ -144,6 +146,8 @@ const Review = (() => {
     deck.querySelectorAll('[data-grade]').forEach((btn) => {
       btn.addEventListener('click', () => grade(btn.dataset.grade));
     });
+
+    hydrateIcons(deck);
   }
 
   /** 自评按钮上预告「按下之后多久再见」，让间隔决策有依据 */

@@ -165,6 +165,9 @@ const CONTRACTS = {
     ['toAnkiCsv', 'function'],
     ['toJson', 'function'],
     ['toObsidian', 'function']
+  ],
+  'icons.js': [
+    ['icon', 'function']
   ]
 };
 
@@ -188,7 +191,7 @@ const CALLERS = {
   Exporters: CONTRACTS['exporters.js'],
   Engine: CONTRACTS['card-engine.js']
 };
-const EXTRAS = { Scheduler: ['DAY', 'GRADES'], Engine: ['CEILING', 'LIMITS'] };
+const EXTRAS = { Scheduler: ['DAY', 'GRADES'], Engine: ['CEILING', 'LIMITS'], Icons: ['names'] };
 
 for (const [mod, contract] of Object.entries(CALLERS)) {
   const names = new Set([...contract.map(([n]) => n), ...(EXTRAS[mod] || [])]);
@@ -285,8 +288,13 @@ console.log('\n[6] 样式表结构');
       (missingVars.length ? `  未定义且无兜底：${missingVars.join(', ')}` : '')
   );
 
+  // backdrop-filter 是全场最贵的属性：允许用，但必须有上限。
+  // 上一版曾给每张卡片都挂实时模糊——这版的设计答案是 0 处，只在必要时用。
   const glassCount = (css.match(/backdrop-filter/g) || []).length;
-  check(glassCount > 0, `backdrop-filter 使用 ${glassCount} 处（应只出现在大面积表面上）`);
+  check(
+    glassCount <= 8,
+    `backdrop-filter 仅 ${glassCount} 处（上限 8；卡片层不该有实时模糊）`
+  );
 }
 
 /* ---------- 汇总 ---------- */
