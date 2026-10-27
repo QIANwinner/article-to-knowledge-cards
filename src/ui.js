@@ -21,15 +21,19 @@ const UI = (() => {
       .replace(/'/g, '&#39;');
   }
 
-  /** 按钮上的临时文案反馈 */
+  /**
+   * 按钮上的临时文案反馈。按钮通常是「图标 span + 文案 span」两个子元素，
+   * 直接覆盖整颗按钮的 textContent 会把图标 SVG 一起吃掉且无法复原，
+   * 所以只换最后一个 span（即文案）。
+   */
   function flash(btn, msg, ms = 1600) {
     if (!btn) return;
-    const old = btn.dataset.originalText || btn.textContent;
-    btn.dataset.originalText = old;
-    btn.textContent = msg;
+    const spans = btn.querySelectorAll('span');
+    const target = spans.length ? spans[spans.length - 1] : btn;
+    const old = target.textContent;
+    target.textContent = msg;
     setTimeout(() => {
-      btn.textContent = btn.dataset.originalText || old;
-      delete btn.dataset.originalText;
+      target.textContent = old;
     }, ms);
   }
 

@@ -90,9 +90,13 @@ const Engine = (() => {
     return out;
   }
 
+  // 句末标点后紧跟的闭合引号/括号属于本句：甩给下一句会让候选以残缺符号起头
+  // （「……脏读。”然后他补充……」若在句号处断开，”就会落在下一句开头）。
+  const CLOSERS = '"\'”’）)」』】》»';
+
   /**
    * 断句。句末标点保留在句子里；句点只在后接空白或结束时才断，
-   * 小数点与缩写不断。
+   * 小数点与缩写不断。闭合引号/括号先并入本句再判断断点。
    */
   function splitSentences(para) {
     const out = [];
@@ -101,15 +105,23 @@ const Engine = (() => {
       const ch = para[i];
       buf += ch;
       if ('。！？；!?;'.includes(ch)) {
+        let j = i + 1;
+        while (j < para.length && CLOSERS.includes(para[j])) j++;
+        buf += para.slice(i + 1, j);
         out.push(buf);
         buf = '';
+        i = j - 1;
         continue;
       }
       if (ch === '.') {
-        const next = para[i + 1];
-        if (next === undefined || /[\s。！？；!?;"'”’)\]]/.test(next)) {
+        let j = i + 1;
+        while (j < para.length && CLOSERS.includes(para[j])) j++;
+        const next = para[j];
+        if (next === undefined || /[\s。！？；!?;]/.test(next)) {
+          buf += para.slice(i + 1, j);
           out.push(buf);
           buf = '';
+          i = j - 1;
         }
       }
     }

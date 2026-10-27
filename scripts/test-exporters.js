@@ -27,6 +27,8 @@ function check(cond, msg) {
 
 const cards = [
   {
+    id: 'c_1',
+    sourceId: 's_1',
     index: 1,
     title: '折叠屏出货量三连降',
     section: '一、市场数据',
@@ -49,6 +51,8 @@ const cards = [
     reviewCount: 0
   },
   {
+    id: 'c_2',
+    sourceId: 's_1',
     index: 2,
     title: '含"引号"与\ttab 的标题',
     section: '一、市场数据',
@@ -170,12 +174,17 @@ console.log('\n[Anki CSV]');
   );
   check(records[0][0] === '折叠屏 市场', `tags 列用空格分隔（实际 "${records[0][0]}"）`);
   check(records[1][1].includes('第一行') && records[1][1].includes('第二行'), '换行字段完整落在同一格');
+  check(records[1][1].includes('<br>'), 'html:true 下换行写成 <br>（裸换行会被 Anki 折成空格）');
   check(records[1][2].includes('问：为什么？'), '背面字段未被换行拆散');
 
   check(Exporters.csvField('含"引号"') === '"含""引号"""', '双引号被翻倍转义');
   check(Exporters.csvField('a\tb') === '"a\tb"', 'tab 被引号包裹');
   check(Exporters.csvField('plain') === 'plain', '普通字段不加引号');
 
+  check(
+    Exporters.ankiFront({ core: 'a<b & c', plain: 'x<y' }) === 'a&lt;b &amp; c<br>解释：x&lt;y',
+    '正面 HTML 字符被转义（#html:true 下裸 < 会吞掉半张卡）'
+  );
   check(Exporters.ankiFront(cards[0]).includes('解释：'), '正面含核心知识与解释');
   check(!Exporters.ankiFront(cards[0]).includes('口径提示'), '口径提示不进正面');
   check(Exporters.ankiBack(cards[0]).includes('口径提示：'), '口径提示进背面');
@@ -189,6 +198,8 @@ console.log('\n[JSON]');
   const data = JSON.parse(json);
   check(data.cards.length === 2, '两张卡');
   check(data.generator === 'article-to-knowledge-cards', '带生成器标识');
+  check(data.cards[0].id === 'c_1', '带卡片 id（导入按 id 去重，没有 id 每次导入都会翻倍）');
+  check(data.cards[0].sourceId === 's_1', '带来源关联');
   check(data.cards[0].plainGap === true, '保留 plainGap 标记');
   check(data.cards[0].caveat.length > 0, '保留口径提示');
   check(data.cards[1].schedule.interval === 6, '保留调度状态');

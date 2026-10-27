@@ -80,10 +80,15 @@ const Library = (() => {
     const sel = UI.$('lib-source');
     const current = sel.value;
     const sources = Store.listSources();
+    // 计数必须现算：来源对象上没有 cards 字段，读它会一直显示（0）
+    const counts = new Map();
+    for (const c of Store.listCards()) {
+      counts.set(c.sourceId, (counts.get(c.sourceId) || 0) + 1);
+    }
     sel.innerHTML =
       '<option value="">全部来源</option>' +
       sources
-        .map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}（${s.cards || 0}）</option>`)
+        .map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}（${counts.get(s.id) || 0}）</option>`)
         .join('');
     sel.value = current;
   }
@@ -262,7 +267,8 @@ const Library = (() => {
     toast('已删除', 'info', {
       label: '撤销',
       onClick: () => {
-        Store.addCards(c.sourceId, [c]);
+        // restoreCard 原样放回：保留原 id 与复习进度（addCards 会把两者都重置掉）
+        Store.restoreCard(c);
         toast('已恢复', 'ok');
         render();
         onChange();

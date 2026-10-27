@@ -147,6 +147,7 @@ const CONTRACTS = {
     ['setTag', 'function'],
     ['exportAll', 'function'],
     ['importAll', 'function'],
+    ['restoreCard', 'function'],
     ['clearAll', 'function'],
     ['stats', 'function'],
     ['persistent', 'function']

@@ -15,20 +15,34 @@ const Exporters = (() => {
   'use strict';
 
   /**
+   * 文件头声明了 #html:true，Anki 会把字段内容当 HTML 渲染：
+   *   - 换行必须写成 <br>，裸换行会被折叠成空格，多行正面会挤成一行；
+   *   - 裸的 < > & 必须转义，否则正文里一句「a < b」会把半张卡吞进一个不存在的标签里。
+   * 引号不用转——CSV 层的引号翻倍（csvField）与 HTML 层互不干扰。
+   */
+  function toHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+  }
+
+  /**
    * 把卡片正文压成 Anki 正面：核心知识 + 解释。
    * 口径提示不进正面——它是元信息，塞进正面会让复习时噪音盖住知识点。
    */
   function ankiFront(card) {
-    const parts = [card.core || '', card.plain ? `解释：${card.plain}` : ''];
-    return parts.filter(Boolean).join('\n');
+    const parts = [toHtml(card.core || ''), card.plain ? `解释：${toHtml(card.plain)}` : ''];
+    return parts.filter(Boolean).join('<br>');
   }
 
   function ankiBack(card) {
     const parts = [];
-    if (card.caveat) parts.push(`口径提示：${card.caveat}`);
-    parts.push(`${card.exampleLabel || '例子'}：${card.example || ''}`);
-    if (card.section) parts.push(`来源小节：${card.section}`);
-    return parts.join('\n');
+    if (card.caveat) parts.push(`口径提示：${toHtml(card.caveat)}`);
+    parts.push(`${card.exampleLabel || '例子'}：${toHtml(card.example || '')}`);
+    if (card.section) parts.push(`来源小节：${toHtml(card.section)}`);
+    return parts.join('<br>');
   }
 
   /** CSV 字段转义：tab / 引号 / 换行是 Anki 解析器的雷区 */
@@ -128,7 +142,11 @@ const Exporters = (() => {
     return lines.join('\n');
   }
 
-  /** JSON 导出：完整保留字段与调度状态，可原样导入回来 */
+  /**
+   * JSON 导出：完整保留字段与调度状态，可原样导入回来。
+   * id 与 sourceId 必须带上——导入按 id 去重合并，没有 id 的导出每次导入都会翻倍。
+   * 调度状态收在 schedule 子对象里，Store.importAll 负责在导入时摊平。
+   */
   function toJson(cards, meta = {}) {
     return JSON.stringify(
       {
@@ -137,6 +155,8 @@ const Exporters = (() => {
         exportedAt: new Date().toISOString(),
         source: meta.sourceName || null,
         cards: cards.map((c) => ({
+          id: c.id || null,
+          sourceId: c.sourceId || null,
           index: c.index,
           title: c.title,
           section: c.section,
@@ -147,7 +167,10 @@ const Exporters = (() => {
           caveat: c.caveat || '',
           exampleLabel: c.exampleLabel,
           example: c.example,
+          raw: c.raw || '',
           tags: c.tags || [],
+          createdAt: c.createdAt || null,
+          updatedAt: c.updatedAt || null,
           schedule: {
             status: c.status,
             due: c.due,

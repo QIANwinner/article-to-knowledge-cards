@@ -264,6 +264,46 @@ console.log('\n[卡片库持久化]');
   check(Store.listSources().length === 0, '来源已删除');
 }
 
+/* ---------- 11. 单批导出导回、撤销删除、来源去重 ---------- */
+console.log('\n[导出导回与撤销删除]');
+{
+  const Exporters = require(path.join(__dirname, '..', 'src', 'exporters.js'));
+
+  const src = Store.addSource({ name: 'round.md', text: '原文内容 R' });
+  const added = Store.addCards(src.id, [
+    { index: 1, title: '回合卡', core: '核心', plain: '解释', plainGap: false }
+  ]);
+  Store.updateCard(added[0].id, { status: 'review', interval: 6, reps: 2 });
+
+  // 单批导出（toJson：cards 数组 + schedule 子对象）必须能原样导回
+  const exported = JSON.parse(Exporters.toJson(Store.listCards(), { sourceName: 'round.md' }));
+  Store.clearAll();
+  const res = Store.importAll(exported, 'merge');
+  check(res.cards === 1, `toJson 导出的数组格式可导回（实际 ${res.cards} 张）`);
+  const back = Store.listCards()[0];
+  check(back.id === added[0].id, '导回保留原 id（按 id 合并，重复导入不会翻倍）');
+  check(
+    back.status === 'review' && back.interval === 6 && back.reps === 2,
+    '调度状态从 schedule 子对象摊平还原'
+  );
+
+  // 撤销删除：restoreCard 原样放回，复习进度不丢
+  const before = Store.getCard(added[0].id);
+  Store.removeCard(added[0].id);
+  check(Store.getCard(added[0].id) === null, '删除生效');
+  Store.restoreCard(before);
+  const restored = Store.getCard(added[0].id);
+  check(
+    !!restored && restored.id === before.id && restored.interval === 6 && restored.status === 'review',
+    'restoreCard 保留原 id 与复习进度'
+  );
+
+  // 同名同长但内容不同的两篇文章不叫重复
+  const a = Store.addSource({ name: 'len.md', text: '内容甲乙丙' });
+  const b = Store.addSource({ name: 'len.md', text: '内容甲乙丁' });
+  check(a.id !== b.id, '同名同长度但内容不同的来源不会误判为重复');
+}
+
 console.log('\n' + '='.repeat(64));
 console.log(`结果：${pass} 通过，${fail} 失败`);
 console.log('='.repeat(64));

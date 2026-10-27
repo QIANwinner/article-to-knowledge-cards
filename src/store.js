@@ -107,11 +107,12 @@ const Store = (() => {
   /**
    * 保存一次来源。
    * 同名同内容的来源不重复入库——重复粘贴同一篇文章是最常见的误操作。
+   * 内容相等必须逐字比较：长度相同但内容不同的两篇文章不叫重复。
    */
   function addSource({ name, text, disclaimers, kind }) {
     const db = read();
     const existed = listSources().find(
-      (s) => s.name === name && s.text.length === text.length
+      (s) => s.name === name && s.text === text
     );
     if (existed) return existed;
 
@@ -226,24 +227,64 @@ const Store = (() => {
   }
 
   /**
+   * 把两种入库格式归一成 { sources: {id: src}, cards: {id: card} }：
+   *   - 库备份（exportAll）：sources / cards 本来就是按 id 的对象，调度字段平铺
+   *   - 单批导出（exporters.toJson）：cards 是数组，调度状态收在 schedule 子对象里，
+   *     旧版导出还可能没有 id——没有就现发一个，否则按数组下标当键会互相撞车
+   */
+  function normalizeImport(data) {
+    const db = EMPTY();
+    const sources = (data && data.sources) || {};
+    const cards = (data && data.cards) || {};
+    const srcList = Array.isArray(sources) ? sources : Object.values(sources);
+    const cardList = Array.isArray(cards) ? cards : Object.values(cards);
+    for (const s of srcList) {
+      if (s && typeof s === 'object') db.sources[s.id || uid('s')] = s;
+    }
+    for (const c of cardList) {
+      if (!c || typeof c !== 'object') continue;
+      const card = Object.assign({}, c);
+      if (card.schedule && typeof card.schedule === 'object') {
+        Object.assign(card, card.schedule);
+        delete card.schedule;
+      }
+      db.cards[card.id || uid('c')] = card;
+    }
+    db.updatedAt = (data && data.updatedAt) || 0;
+    return db;
+  }
+
+  /**
    * 从备份导入。
    * @param {'merge'|'replace'} mode merge 保留现有库；replace 清空后导入
    */
   function importAll(data, mode = 'merge') {
-    const incoming = migrate(data);
+    const incoming = normalizeImport(data);
     if (mode === 'replace') {
       cache = incoming;
     } else {
       const db = read();
-      for (const [k, v] of Object.entries(incoming.sources || {})) {
+      for (const [k, v] of Object.entries(incoming.sources)) {
         if (!db.sources[k]) db.sources[k] = v;
       }
-      for (const [k, v] of Object.entries(incoming.cards || {})) {
+      for (const [k, v] of Object.entries(incoming.cards)) {
         if (!db.cards[k]) db.cards[k] = v;
       }
     }
     write();
     return { sources: Object.keys(read().sources).length, cards: Object.keys(read().cards).length };
+  }
+
+  /**
+   * 原样放回一张卡（撤销删除用）：保留原 id 与复习进度。
+   * 走 addCards 会重置调度状态并换新 id，恢复出来的就不是原来那张卡了。
+   */
+  function restoreCard(card) {
+    if (!card || !card.id) return null;
+    const db = read();
+    db.cards[card.id] = card;
+    write();
+    return card;
   }
 
   function clearAll() {
@@ -278,6 +319,7 @@ const Store = (() => {
     setTag,
     exportAll,
     importAll,
+    restoreCard,
     clearAll,
     stats
   };

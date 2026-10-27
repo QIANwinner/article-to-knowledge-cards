@@ -197,6 +197,32 @@ console.log('\n[专项] 文本拼接');
   check(!/\s/.test(squeeze(r.cards[0] ? r.cards[0].core : '')), '中文换行处不插入多余空格');
 }
 
+// 专项：闭合引号随前句断句，不甩到下一句开头
+console.log('\n[专项] 闭合引号归属');
+{
+  // 句号/句点后的 ” 或 " 必须留在前一句里，否则候选会以残缺符号起头
+  const cn = Engine.segment(
+    '他说："缓存的第一条规则是失效信号必须全层级共享，否则必然出现脏读。”然后他补充了这条规则的边界条件与反例。'
+  );
+  const cnStray = cn.candidates.some((c) =>
+    c.sentences.some((s) => /^[”’"')」』】》]/.test(s))
+  );
+  check(!cnStray, '中文：句号后的闭合引号归前句');
+
+  const en = Engine.segment('He said "the eviction must log first." Then he left.');
+  const enStray = en.candidates.some((c) =>
+    c.sentences.some((s) => /^[”’"')」』】》]/.test(s))
+  );
+  check(!enStray, '英文：句点后的闭合引号归前句');
+
+  // 小数点与缩写仍不断句
+  const decimal = Engine.segment('命中率从 3.5 倍提升到 5.5 倍，代价是延迟翻倍。').candidates;
+  check(
+    decimal.some((c) => /3\.5/.test(c.text) && /5\.5/.test(c.text)),
+    '小数点不被误断（3.5 / 5.5 保持完整）'
+  );
+}
+
 // 专项：空输入与超长输入
 console.log('\n[专项] 边界处理');
 {
