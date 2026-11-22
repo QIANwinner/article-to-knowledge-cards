@@ -1,6 +1,6 @@
 {
   "name": "article-to-knowledge-cards",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "文章转知识卡片 — 本地 GUI 前端（Tauri 2 + 原生 JS，零前端依赖）",
   "scripts": {
@@ -21,8 +21,8 @@
   },
   "comments": {
     "usage": "浏览器预览用 npm run serve；产出 Windows exe 用 npm run build:exe（脚本内已内置 RUSTFLAGS=--cfg has_std，绕过 indexmap/schemars 与 Rust 1.99 的兼容问题）。",
-    "noDependencies": "前端零依赖运行，serve 与四组检查只需 Node.js，不需要 npm install",
+    "noDependencies": "前端零依赖运行，serve 与 npm test 只需 Node.js，不需要 npm install",
     "rustflags": "构建 Rust 侧必须带 --cfg has_std，否则报 E0107。详见 src-tauri/Cargo.toml 顶部注释。",
-    "versionSource": "版本号唯一源是 package.json；Cargo.toml 与 tauri.conf.json 由 npm run check:version 校验一致性。"
+    "versionSource": "版本号唯一源是 package.json；npm 和 Cargo 清单、锁文件及 tauri.conf.json 由 npm run check:version 校验一致性。"
   }
 }

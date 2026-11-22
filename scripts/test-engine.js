@@ -184,6 +184,25 @@ console.log('\n[专项] 原文声明保留');
   check(allOk, detail || '三份带声明的样本：声明已识别并落到带数字卡片的口径提示');
 }
 
+console.log('\n[专项] 不改变主张');
+{
+  const claim = '缓存层规定每个请求的默认超时时间必须设置为 250 毫秒。';
+  const other = claim.replace('250', '500');
+  const disclaimer = ['虚构示例。', '仅限本次模拟测量，不是生产环境的结果。'];
+  const text = disclaimer.map((s) => `> ${s}`).join('\n') + `\n\n${claim}\n\n${other}\n\n${claim}`;
+  const { cards, stats } = Engine.generate(text);
+  check(cards.length === 2 && cards[0].core === claim && cards[1].core === other && stats.merged === 1,
+    '保留数值不同的两项主张，只合并真正重复的数值句');
+  check(cards.length > 0 && cards.every((c) => disclaimer.every((d) => c.caveat.includes(d))),
+    '含数字卡保留完整多行声明，包括短声明');
+
+  const plan = '待办：因为空间不足，下周准备把备份的统计口径改为 5 天。';
+  const r = Engine.generate(`${claim}${plan}`);
+  check(r.cards.length === 1 && r.rejected.some((c) => c.text === plan) &&
+    ![r.cards[0].core, r.cards[0].plain, r.cards[0].caveat].some((s) => s.includes(plan)),
+    '被拒的待办含因果或口径词，也不会回流到相邻卡的解释或提示');
+}
+
 // 专项：英文拼接不留粘连空格
 console.log('\n[专项] 文本拼接');
 {
@@ -233,7 +252,8 @@ console.log('\n[专项] 边界处理');
     `第${i + 1} 条规则：因为条件A成立，所以结果B必然发生，这是第${i + 1} 个知识点。`
   ).join('\n\n');
   const r = Engine.generate(long);
-  check(r.cards.length <= Engine.CEILING, `超长输入仍 ≤ ${Engine.CEILING}（实际 ${r.cards.length}）`);
+  check(r.cards.length === Engine.CEILING && r.stats.overCeiling === 400 - Engine.CEILING,
+    `400 个不同数值的候选保留 ${Engine.CEILING} 张，其余计入超限省略`);
 }
 
 console.log('\n' + '='.repeat(64));

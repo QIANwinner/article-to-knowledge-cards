@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', 'src');
-const PORT = 5178;
+const PORT = Number(process.env.PORT || 5178);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -21,12 +21,23 @@ const MIME = {
 };
 
 const server = http.createServer((req, res) => {
-  const url = decodeURIComponent(req.url.split('?')[0]);
+  let url;
+  try {
+    url = decodeURIComponent(req.url.split('?')[0]);
+  } catch {
+    res.writeHead(400).end('400 Bad Request');
+    return;
+  }
+  if (url.includes('\0')) {
+    res.writeHead(400).end('400 Bad Request');
+    return;
+  }
   const rel = url === '/' ? 'index.html' : url.replace(/^\/+/, '');
-  const file = path.join(ROOT, rel);
+  const file = path.resolve(ROOT, rel);
 
   // 防目录穿越
-  if (!file.startsWith(ROOT)) {
+  const relative = path.relative(ROOT, file);
+  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
     res.writeHead(403).end('403 Forbidden');
     return;
   }
@@ -47,7 +58,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, '127.0.0.1', () => {
   console.log('');
   console.log('  卡片生成器已启动');
-  console.log(`  http://127.0.0.1:${PORT}`);
+  console.log(`  http://127.0.0.1:${server.address().port}`);
   console.log('');
   console.log('  按 Ctrl+C 停止');
   console.log('');

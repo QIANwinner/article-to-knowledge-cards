@@ -12,6 +12,7 @@
  */
 
 const path = require('path');
+const Exporters = require('../src/exporters.js');
 
 // ---- 注入假 localStorage，让 Store 走真实持久化分支 ----
 function makeLocalStorage() {
@@ -267,20 +268,26 @@ console.log('\n[卡片库持久化]');
 /* ---------- 11. 单批导出导回、撤销删除、来源去重 ---------- */
 console.log('\n[导出导回与撤销删除]');
 {
-  const Exporters = require(path.join(__dirname, '..', 'src', 'exporters.js'));
-
-  const src = Store.addSource({ name: 'round.md', text: '原文内容 R' });
+  const src = Store.addSource({ name: 'round.md', text: '原文内容 R', disclaimers: ['仅供演示'] });
+  Store.addSource({ name: 'other.md', text: '不在筛选范围内的原文' });
   const added = Store.addCards(src.id, [
     { index: 1, title: '回合卡', core: '核心', plain: '解释', plainGap: false }
   ]);
   Store.updateCard(added[0].id, { status: 'review', interval: 6, reps: 2 });
 
   // 单批导出（toJson：cards 数组 + schedule 子对象）必须能原样导回
-  const exported = JSON.parse(Exporters.toJson(Store.listCards(), { sourceName: 'round.md' }));
+  const exported = JSON.parse(Exporters.toJson(Store.listCards(), {
+    sourceName: 'round.md', sources: Store.listSources()
+  }));
   Store.clearAll();
   const res = Store.importAll(exported, 'merge');
   check(res.cards === 1, `toJson 导出的数组格式可导回（实际 ${res.cards} 张）`);
   const back = Store.listCards()[0];
+  const source = Store.getSource(back.sourceId);
+  check(res.sources === 1 && source && source.text === src.text && source.disclaimers[0] === '仅供演示',
+    '空库导回能按 ID 找到完整原文及声明，不夹带未选来源');
+  check(Store.importAll(exported).cards === 1 && Store.listSources().length === 1,
+    '有 ID 的备份重复导入不增加卡片或来源');
   check(back.id === added[0].id, '导回保留原 id（按 id 合并，重复导入不会翻倍）');
   check(
     back.status === 'review' && back.interval === 6 && back.reps === 2,
@@ -302,6 +309,46 @@ console.log('\n[导出导回与撤销删除]');
   const a = Store.addSource({ name: 'len.md', text: '内容甲乙丙' });
   const b = Store.addSource({ name: 'len.md', text: '内容甲乙丁' });
   check(a.id !== b.id, '同名同长度但内容不同的来源不会误判为重复');
+}
+
+console.log('\n[旧备份与无效导入]');
+{
+  Store.importAll({ cards: [{ title: '旧卡', core: '旧内容' }] }, 'replace');
+  const [old] = Store.listCards();
+  check(!!old.id && Store.updateCard(old.id, { core: '可编辑' }).core === '可编辑',
+    '旧数组备份的无 ID 卡片得到可编辑的 ID');
+  const before = JSON.stringify(Store.listCards());
+  for (const [mode, data] of [
+    ['merge', { cards: [makeCard(), { title: '坏卡', core: '内容', tags: '非数组' }] }],
+    ['replace', { other: [] }]
+  ]) {
+    let rejected = false;
+    try { Store.importAll(data, mode); } catch (_) { rejected = true; }
+    check(rejected && JSON.stringify(Store.listCards()) === before, `无效 ${mode} 导入不部分写入或清空原库`);
+  }
+}
+
+console.log('\n[只读与损坏存档]');
+{
+  const storage = makeLocalStorage();
+  global.window.localStorage = storage;
+  const modulePath = require.resolve('../src/store.js');
+  const reload = () => { delete require.cache[modulePath]; return require(modulePath); };
+  storage.setItem(Store.KEY, JSON.stringify({ cards: { saved: { title: '已存', core: '仍可读取' } } }));
+  const previous = storage.getItem(Store.KEY);
+  const put = storage.setItem;
+  storage.setItem = () => { throw new Error('QuotaExceededError'); };
+  const full = reload();
+  check(full.listCards()[0]?.id === 'saved', '存储已满仍能读回已存卡片，并从旧库键恢复 ID');
+  full.updateCard('saved', { title: '会话内编辑' });
+  check(!full.persistent() && full.getCard('saved')?.title === '会话内编辑' && storage.getItem(Store.KEY) === previous,
+    '写入失败保留会话数据，不破坏原档');
+  storage.setItem = put;
+  storage.setItem(Store.KEY, '{');
+  const corrupt = reload();
+  corrupt.addSource({ name: 'new.txt', text: '新原文' });
+  check(corrupt.stats().corrupted && !corrupt.persistent() && storage.getItem(Store.KEY) === '{',
+    '损坏的原档不会被后续保存覆盖');
 }
 
 console.log('\n' + '='.repeat(64));

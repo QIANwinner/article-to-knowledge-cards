@@ -44,7 +44,7 @@ const Engine = (() => {
   function stripMarkdown(line) {
     return line
       .replace(/^\s{0,3}#{1,6}\s+/, '')
-      .replace(/^>\s?/, '')
+      .replace(/^\s{0,3}>\s?/, '')
       .replace(/^[-*+]\s+/, '')
       .replace(/^\d+[.)]\s+/, '')
       .trim();
@@ -168,7 +168,7 @@ const Engine = (() => {
         // 正文开始前的引用块是原文自带的声明（虚构标记、时效声明、样本说明），
         // 整段搬进 footer 与 caveat，不参与候选抽取。
         if (!seenProse) {
-          if (quoted.length >= LIMITS.minParaChars) disclaimers.push(quoted);
+          if (quoted) disclaimers.push(quoted);
           continue;
         }
         current.lines.push(raw);
@@ -282,7 +282,7 @@ const Engine = (() => {
   /* ---------- 资格判定 ---------- */
 
   const NON_CARD_PATTERNS = [
-    { re: /^(待办|todo|to-do)\b|^(下周|下个月|明天|待办事项)/i, why: '计划' },
+    { re: /^(待办|下周|下个月|明天)|^(todo|to-do)\b/i, why: '计划' },
     { re: /还没定|尚未确定|待确认|还没想好|暂时没有|暂无/, why: '未决问题' },
     { re: /^(预计|预测|将会|未来会|估计会)/, why: '预测' },
     { re: /^作者(认为|指出)|^本文将|^接下来我们|^下面我们|^In this (article|post|note)/i, why: '框架句' }
@@ -354,18 +354,25 @@ const Engine = (() => {
 
   function dedupe(qualified) {
     const kept = [];
+    const numbered = new Map();
+    const unnumbered = [];
     for (const cand of qualified) {
-      const norm = normalize(cand.text);
-      // 阈值 0.72：2-gram 下同义改写通常落在 0.5-0.7，主题相近的两句
-      // 才会超过 0.72。原先 0.62 在中文语料上过于激进（9 条合并成 1 条）。
-      const dup = kept.find((k) => similarity(k.norm, norm) > LIMITS.dedupeThreshold);
+      // 数字、小数点、单位或正负号都可能是主张本身，含数字时只合并原文相同的句子。
+      let dup;
+      if (/\d/.test(cand.text)) {
+        dup = numbered.get(cand.text);
+        if (!dup) numbered.set(cand.text, cand);
+      } else {
+        cand.norm = normalize(cand.text);
+        dup = unnumbered.find((k) => similarity(k.norm, cand.norm) > LIMITS.dedupeThreshold);
+        if (!dup) unnumbered.push(cand);
+      }
       if (dup) {
         dup.mergedFrom = (dup.mergedFrom || 1) + 1;
         // 记下被合并掉的句子：质量报告要能回答「哪几句被算成了重复」
         (dup.mergedTexts = dup.mergedTexts || []).push(cand.text);
         continue;
       }
-      cand.norm = norm;
       kept.push(cand);
     }
     return kept;
@@ -468,10 +475,10 @@ const Engine = (() => {
     }
 
     for (const nb of [cand.next, cand.prev]) {
-      if (!nb || nb.length < 12) continue;
+      if (!nb || nb.length < 12 || nonCardReason(nb)) continue;
       if (similarity(normalize(nb), normalize(text)) > 0.5) continue;
       const hasMechanism = MECHANISM_RE.test(nb);
-      const isCarry = !nonCardReason(nb) && signalCount(nb) === 0;
+      const isCarry = signalCount(nb) === 0;
       if (hasMechanism || isCarry) {
         return { plain: nb, plainSource: '原文相邻句', plainGap: false };
       }
@@ -506,29 +513,19 @@ const Engine = (() => {
    *   2. 相邻句里的口径限定语
    *   3. 紧邻的转折/相反表述
    */
-  function deriveCaveat(cand, figures, disclaimers) {
+  function deriveCaveat(cand, plain, disclaimers) {
     const parts = [];
-
-    if (disclaimers && disclaimers.length) {
-      // SKILL.md Step 1：声明适用于「带任何数字或专名」的卡，不限于带单位的数字
-      const carries = /\d/.test(cand.text) || ENTITY_RE.test(cand.text);
-      if (carries) parts.push(disclaimers[0]);
-    }
-
     for (const nb of [cand.next, cand.prev]) {
-      if (nb && nb.length >= 12 && SCOPE_RE.test(nb)) {
+      if (nb && !nonCardReason(nb) && nb.length >= 12 && SCOPE_RE.test(nb)) {
         parts.push(nb);
         break;
       }
     }
 
-    if (cand.next && CONTRAST_RE.test(cand.next)) parts.push(cand.next);
-
-    const uniq = [];
-    for (const p of parts) {
-      if (p && !uniq.some((u) => normalize(u) === normalize(p))) uniq.push(p);
-    }
-    return uniq.join(' ');
+    if (cand.next && !nonCardReason(cand.next) && CONTRAST_RE.test(cand.next)) parts.push(cand.next);
+    const evidence = [cand.text, plain, ...parts].join(' ');
+    const carries = /\d/.test(evidence) || ENTITY_RE.test(evidence);
+    return [...new Set(carries ? disclaimers.concat(parts) : parts)].join(' ');
   }
 
   /** 例子与自测题二选一：原文有数字就用例，否则出题 */
@@ -559,14 +556,15 @@ const Engine = (() => {
     const title = deriveTitle(cand);
     const figures = findFigures(cand.text);
     const { exampleLabel, example } = deriveExample(cand, core, title, figures);
+    const explanation = derivePlain(cand);
 
     return {
       index,
       title,
       section: cand.section,
       core,
-      ...derivePlain(cand),
-      caveat: deriveCaveat(cand, figures, disclaimers),
+      ...explanation,
+      caveat: deriveCaveat(cand, explanation.plainGap ? '' : explanation.plain, disclaimers),
       exampleLabel,
       example,
       mergedFrom: cand.mergedFrom || 1,

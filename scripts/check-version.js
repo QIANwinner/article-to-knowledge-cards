@@ -1,9 +1,9 @@
 /**
  * check-version.js — 版本号一致性校验
  *
- * 版本号分散在三处，历史上已经漂移过一次：
+ * 版本号分散在 npm、Cargo 的清单与锁文件，以及 Tauri 配置中：
  * crate 版本停在 0.1.3，而 exe 产物已按 0.1.4 命名。
- * 这里把 package.json 定为唯一源，另外两处对不上就直接失败。
+ * 这里把 package.json 定为唯一源，其他位置对不上就直接失败。
  *
  * 运行：npm run check:version
  */
@@ -23,10 +23,17 @@ console.log(`唯一源 package.json 版本：${version}\n`);
 
 const targets = [
   { file: 'src-tauri/Cargo.toml', re: /^\[package\][\s\S]*?^version\s*=\s*"([^"]+)"/m, name: 'Cargo package' },
+  { file: 'src-tauri/Cargo.lock', re: /^name = "knowledge-cards"\r?\nversion = "([^"]+)"/m, name: 'Cargo.lock (app)' },
   { file: 'src-tauri/tauri.conf.json', re: /"version"\s*:\s*"([^"]+)"/, name: 'tauri.conf.json' }
 ];
 
 let fail = 0;
+const lock = JSON.parse(read('package-lock.json'));
+const lockMatches = [lock, lock.packages?.['']].every(
+  (entry) => entry && entry.name === pkg.name && entry.version === version
+);
+console.log(`  ${lockMatches ? 'PASS' : 'FAIL'}  npm 锁文件与 package.json 的项目名和版本一致`);
+if (!lockMatches) fail++;
 for (const t of targets) {
   const m = read(t.file).match(t.re);
   const found = m ? m[1] : '(未找到)';

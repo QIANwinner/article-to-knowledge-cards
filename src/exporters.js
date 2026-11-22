@@ -123,12 +123,13 @@ const Exporters = (() => {
     lines.push('---');
     lines.push(`**卡片数 / Cards**: ${cards.length}`);
     lines.push(`**来源 / Source**: ${meta.sourceName || '粘贴的文本'}`);
-    lines.push(
-      `**未收录 / Omitted**: ${meta.stats && meta.stats.rejected ? `${meta.stats.rejected} 段未通过资格判定（计划、框架句或无实质内容）` : '无'}`
-    );
-    if (meta.stats && meta.stats.merged) {
-      lines.push(`**去重 / Deduplicated**: 合并 ${meta.stats.merged} 处重复论述`);
+    const omitted = [];
+    if (meta.stats) {
+      if (meta.stats.rejected) omitted.push(`${meta.stats.rejected} 段未通过资格判定`);
+      if (meta.stats.merged) omitted.push(`合并 ${meta.stats.merged} 处重复论述`);
+      if (meta.stats.overCeiling) omitted.push(`超上限省略 ${meta.stats.overCeiling} 条`);
     }
+    lines.push(`**未收录 / Omitted**: ${omitted.join('；') || (meta.stats ? '无' : '未记录')}`);
     if (meta.disclaimers && meta.disclaimers.length) {
       lines.push(`**来源声明 / Source disclaimer**: ${meta.disclaimers.join(' ')}`);
     }
@@ -148,12 +149,14 @@ const Exporters = (() => {
    * 调度状态收在 schedule 子对象里，Store.importAll 负责在导入时摊平。
    */
   function toJson(cards, meta = {}) {
+    const sourceIds = new Set(cards.map((c) => c.sourceId));
     return JSON.stringify(
       {
         generator: 'article-to-knowledge-cards',
         version: 1,
         exportedAt: new Date().toISOString(),
         source: meta.sourceName || null,
+        sources: (meta.sources || []).filter((s) => sourceIds.has(s.id)),
         cards: cards.map((c) => ({
           id: c.id || null,
           sourceId: c.sourceId || null,
@@ -168,6 +171,8 @@ const Exporters = (() => {
           exampleLabel: c.exampleLabel,
           example: c.example,
           raw: c.raw || '',
+          mergedFrom: c.mergedFrom,
+          mergedTexts: c.mergedTexts,
           tags: c.tags || [],
           createdAt: c.createdAt || null,
           updatedAt: c.updatedAt || null,

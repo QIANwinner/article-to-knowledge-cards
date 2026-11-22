@@ -56,7 +56,7 @@ const Library = (() => {
         const text = await readFileAsText(file);
         const data = JSON.parse(text);
         const res = Store.importAll(data, 'merge');
-        toast(`已导入：${res.cards} 张卡片 / ${res.sources} 个来源`, 'ok');
+        toast(`导入完成，当前库：${res.cards} 张卡片 / ${res.sources} 个来源`, 'ok');
         render();
         onChange();
       } catch (err) {
@@ -137,7 +137,7 @@ const Library = (() => {
     return `
     <article class="card" data-id="${escapeHtml(c.id)}" style="--i:${Math.min(i, 8)}">
       <div class="card-head">
-        <span class="card-no">${c.index}</span>
+        <span class="card-no">${escapeHtml(c.index)}</span>
         <h3 class="card-title">${escapeHtml(c.title)}</h3>
         <span class="status-pill ${meta.cls}">${Icons.icon(meta.ico, { size: 11 })}<span>${meta.label}</span></span>
         <span class="card-due">${escapeHtml(due)}</span>
@@ -313,21 +313,23 @@ const Library = (() => {
   /* ---------- 导出 ---------- */
 
   function exportAs(format) {
-    const cards = Store.listCards(filter());
+    const f = filter();
+    const cards = Store.listCards(f);
     if (!cards.length) {
       toast('当前筛选结果为空，没有可导出的卡片', 'err');
       return;
     }
-    const f = filter();
-    const sources = new Set(cards.map((c) => (Store.getSource(c.sourceId) || {}).name).filter(Boolean));
-    const sourceName = f.sourceId
-      ? (Store.getSource(f.sourceId) || {}).name || '卡片库'
-      : sources.size === 1
-        ? [...sources][0]
-        : `卡片库（${cards.length} 张，${sources.size} 个来源）`;
+    const sourceIds = new Set(cards.map((c) => c.sourceId));
+    const sources = Store.listSources().filter((s) => sourceIds.has(s.id));
+    const sourceName = sources.length === 1
+      ? sources[0].name
+      : `卡片库（${cards.length} 张，${sources.length} 个来源）`;
 
     const base = (sourceName || 'cards').replace(/\.[^.]+$/, '');
-    const meta = { sourceName, tags: [] };
+    const disclaimers = sources.flatMap((s) => (s.disclaimers || []).map((text) =>
+      sources.length > 1 ? `${s.name}：${text}` : text
+    ));
+    const meta = { sourceName, sources, disclaimers };
 
     if (format === 'markdown') {
       download(`${base}-知识卡片.md`, Exporters.toMarkdown(cards, meta), 'text/markdown;charset=utf-8');

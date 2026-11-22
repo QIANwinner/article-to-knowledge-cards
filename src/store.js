@@ -32,9 +32,6 @@ const Store = (() => {
     try {
       const ls = typeof window !== 'undefined' ? window.localStorage : null;
       if (!ls) throw new Error('no localStorage');
-      const probe = '__akc_probe__';
-      ls.setItem(probe, '1');
-      ls.removeItem(probe);
       return ls;
     } catch (e) {
       persistent = false;
@@ -49,16 +46,21 @@ const Store = (() => {
       cache = memory;
       return cache;
     }
+    let raw;
     try {
-      const raw = ls.getItem(KEY);
-      cache = raw ? migrate(JSON.parse(raw)) : EMPTY();
+      raw = ls.getItem(KEY);
     } catch (e) {
-      // 存档损坏时不要静默清空，保留原始串以便人工抢救
+      persistent = false;
+      return (cache = memory);
+    }
+    try {
+      cache = raw === null ? EMPTY() : migrate(JSON.parse(raw));
+      if (cache.corrupted) persistent = false;
+    } catch (e) {
+      // 保留磁盘上的原档；本次会话可以继续使用并导出新卡。
       cache = EMPTY();
       cache.corrupted = true;
-      cache.rawBackup = (() => {
-        try { return ls.getItem(KEY); } catch (_) { return null; }
-      })();
+      persistent = false;
     }
     return cache;
   }
@@ -66,6 +68,11 @@ const Store = (() => {
   function write() {
     const db = read();
     db.updatedAt = Date.now();
+    if (db.corrupted) {
+      persistent = false;
+      memory = db;
+      return;
+    }
     const ls = backend();
     if (!ls) {
       memory = db;
@@ -73,15 +80,17 @@ const Store = (() => {
     }
     try {
       ls.setItem(KEY, JSON.stringify(db));
+      persistent = true;
     } catch (e) {
+      memory = db;
       persistent = false; // 配额用尽，转内存模式但保留内存数据
     }
   }
 
   function migrate(data) {
-    const db = Object.assign(EMPTY(), data || {});
-    db.sources = db.sources || {};
-    db.cards = db.cards || {};
+    const db = normalizeImport(data);
+    db.updatedAt = data.updatedAt || 0;
+    if (data.corrupted) db.corrupted = true;
     return db;
   }
 
@@ -232,26 +241,61 @@ const Store = (() => {
    *   - 单批导出（exporters.toJson）：cards 是数组，调度状态收在 schedule 子对象里，
    *     旧版导出还可能没有 id——没有就现发一个，否则按数组下标当键会互相撞车
    */
-  function normalizeImport(data) {
-    const db = EMPTY();
-    const sources = (data && data.sources) || {};
-    const cards = (data && data.cards) || {};
-    const srcList = Array.isArray(sources) ? sources : Object.values(sources);
-    const cardList = Array.isArray(cards) ? cards : Object.values(cards);
-    for (const s of srcList) {
-      if (s && typeof s === 'object') db.sources[s.id || uid('s')] = s;
+  function isRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function importTable(table, prefix, label) {
+    const list = Array.isArray(table);
+    if (!list && !isRecord(table)) throw new Error(`备份中的${label}必须是数组或对象`);
+    const rows = {};
+    for (const [key, item] of Object.entries(table)) {
+      if (!isRecord(item)) throw new Error(`无效的${label}记录：${key}`);
+      const id = item.id ?? (list ? uid(prefix) : key);
+      if (typeof id !== 'string' || !id || id in rows) {
+        throw new Error(`${label} ID 无效或重复：${key}`);
+      }
+      rows[id] = { ...item, id };
     }
-    for (const c of cardList) {
-      if (!c || typeof c !== 'object') continue;
-      const card = Object.assign({}, c);
-      if (card.schedule && typeof card.schedule === 'object') {
-        Object.assign(card, card.schedule);
+    return rows;
+  }
+
+  function normalizeImport(data) {
+    if (!isRecord(data) || !Object.hasOwn(data, 'cards')) throw new Error('不是卡片备份：缺少 cards');
+    if (data.version != null && data.version !== VERSION) throw new Error('不支持此备份版本');
+    const db = EMPTY();
+    db.sources = importTable(data.sources ?? {}, 's', '来源');
+    db.cards = importTable(data.cards, 'c', '卡片');
+    for (const s of Object.values(db.sources)) {
+      if (typeof s.name !== 'string' || typeof s.text !== 'string' ||
+          (s.disclaimers != null && !isStringList(s.disclaimers))) {
+        throw new Error(`来源格式不正确：${s.id}`);
+      }
+    }
+    for (const card of Object.values(db.cards)) {
+      if (typeof card.title !== 'string' || typeof card.core !== 'string' ||
+          ['sourceId', 'section', 'plain', 'caveat', 'raw', 'example', 'exampleLabel'].some(
+            (key) => card[key] != null && typeof card[key] !== 'string'
+          ) || (card.tags != null && !isStringList(card.tags)) ||
+          (card.index != null && !Number.isSafeInteger(card.index))) {
+        throw new Error(`卡片格式不正确：${card.id}`);
+      }
+      if (card.schedule != null) {
+        if (!isRecord(card.schedule)) throw new Error(`复习进度格式不正确：${card.id}`);
+        for (const key of ['status', 'due', 'interval', 'ease', 'reps', 'lapses', 'streak', 'lastReview', 'reviewCount']) {
+          if (Object.hasOwn(card.schedule, key)) card[key] = card.schedule[key];
+        }
         delete card.schedule;
       }
-      db.cards[card.id || uid('c')] = card;
+      if (card.status != null && !['new', 'learning', 'review', 'mastered'].includes(card.status)) {
+        throw new Error(`未知的复习状态：${card.id}`);
+      }
     }
-    db.updatedAt = (data && data.updatedAt) || 0;
     return db;
+  }
+
+  function isStringList(value) {
+    return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
 
   /**

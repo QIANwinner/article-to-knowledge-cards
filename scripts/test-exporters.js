@@ -153,6 +153,9 @@ console.log('\n[Markdown]');
   check(md.split('### 卡片').length - 1 === 2, '恰好两张卡，没有多切');
   check(!md.includes('undefined'), '无 undefined 残留');
   check(!md.includes('[object'), '无 [object 残留');
+  const capped = Exporters.toMarkdown(cards, { stats: { overCeiling: 3, merged: 1 } });
+  check(capped.includes('**未收录 / Omitted**: 合并 1 处重复论述；超上限省略 3 条'),
+    '没有拒判但发生去重或截断时，不把未收录误报为「无」');
 }
 
 /* ---------- Anki CSV ---------- */

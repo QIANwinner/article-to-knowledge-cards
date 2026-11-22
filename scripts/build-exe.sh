@@ -13,45 +13,35 @@
 #   手动注入该 cfg 即让 indexmap 走对分支。
 #
 # 用法：bash scripts/build-exe.sh
-# 前置：Node.js ≥ 18、已 npm install、已装 Visual Studio Build Tools
+# 前置：Git Bash、Node.js ≥ 18、Rust MSVC 工具链、Visual Studio Build Tools
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PY="C:/Users/21889/.workbuddy/binaries/python/versions/3.13.12/python.exe"
-NODE="C:/Users/21889/.workbuddy/binaries/node/versions/22.22.2-6/node.exe"
 export PATH="$HOME/.cargo/bin:$PATH"
-export RUSTFLAGS="--cfg has_std"
+export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--cfg has_std"
 
 echo "=============================================="
 echo " 构建 Windows exe"
 echo "=============================================="
 
 # 前置检查
+command -v node >/dev/null 2>&1 || { echo "[x] 未找到 Node.js，请将 node 加入 PATH"; exit 1; }
 command -v cargo >/dev/null 2>&1 || { echo "[x] 未找到 cargo，请先安装 Rust：https://rustup.rs"; exit 1; }
-if ! command -v link.exe >/dev/null 2>&1 && [ ! -f "/c/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Auxiliary/Build/vcvars64.bat" ]; then
-  echo "[!] 可能缺少 MSVC 链接器。若报 link.exe not found，请安装："
-  echo "    curl -L -o vs_BuildTools.exe https://aka.ms/vs/17/release/vs_buildtools.exe"
-  echo "    ./vs_BuildTools.exe --quiet --wait --norestart --nocache \\"
-  echo "      --add Microsoft.VisualStudio.Workload.VCTools \\"
-  echo "      --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 \\"
-  echo "      --add Microsoft.VisualStudio.Component.Windows11SDK.22621"
-  exit 1
-fi
 
 echo "[1/5] 版本号一致性..."
 cd "$ROOT"
-"$NODE" scripts/check-version.js
+node scripts/check-version.js
 echo ""
 
 echo "[2/5] 读取版本号..."
-VERSION="$("$NODE" -p "require('./package.json').version")"
+VERSION="$(node -p "require('./package.json').version")"
 echo "  package.json 版本：$VERSION"
 
 echo ""
 echo "[3/5] cargo build --release（首次约 10-25 分钟，之后约 1-2 分钟）..."
 cd "$ROOT/src-tauri"
-cargo build --release 2>&1 | tail -8
+cargo build --locked --release
 
 EXE="target/release/knowledge-cards.exe"
 [ -f "$EXE" ] || { echo "[x] 编译失败，未产出 exe"; exit 1; }
@@ -64,7 +54,7 @@ cp "$EXE" "$ROOT/release/knowledge-cards.exe"
 cp "$EXE" "$ROOT/release/knowledge-cards-v${VERSION}-windows-x64.exe"
 
 SIZE=$(wc -c < "$ROOT/release/knowledge-cards.exe")
-MB=$("$PY" -c "print(f'{$SIZE/1024/1024:.2f}')")
+MB=$(node -p "($SIZE / 1024 / 1024).toFixed(2)")
 
 echo ""
 echo "=============================================="

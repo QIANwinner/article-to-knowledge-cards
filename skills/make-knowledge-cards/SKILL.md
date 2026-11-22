@@ -23,7 +23,7 @@ The hard part is not formatting. It is selection: deciding what is worth remembe
 
 - Web page fetching or URL scraping
 - PDF, DOCX, XLSX, PPTX, image, or audio input
-- Writing `.apkg` files or flashcard-app import files. **This skill outputs Markdown only.** When the user wants Anki, JSON, or Obsidian output, say that the bundled GUI does it: the same cards can be exported from the local app without regenerating them. Do not hand-roll a CSV or `.apkg` in chat output.
+- Writing `.apkg` files or flashcard-app import files. **This skill outputs Markdown only.** For Anki CSV, JSON, or Obsidian export, point to the bundled GUI: generate cards there from the source, save them to its library, then export. The GUI imports JSON backups, not this skill's Markdown output.
 - Graphical interfaces, web pages, or interactive apps
 
 When the input is out of scope, name the limitation and ask the user to paste the text or point to a Markdown/TXT file instead.
@@ -104,7 +104,7 @@ A large ceiling does not relax this test. Splitting is warranted by the source, 
 The ceiling is **128 cards total**. There is no floor and no quota. Count only the candidates that passed the Step 2 rules, then place them:
 
 - **128 or fewer strong candidates** — one card each, nothing omitted. How the deck is *delivered* depends on how many cards that is: see the table below.
-- **More than 128 strong candidates** — see long-source batching below.
+- **More than 128 strong candidates** — keep the 128 highest-ranked candidates from Step 2, list the omitted topics in the footer, then restore source order for delivery. A new batch never resets the ceiling.
 
 Then set the delivery shape, because a 100-card deck dumped into one reply is unreadable. The thresholds below are exact, not approximate:
 
@@ -116,14 +116,14 @@ Then set the delivery shape, because a 100-card deck dumped into one reply is un
 
 When batching, tell the reader up front how many cards the source yields and how many batches to expect, then deliver the batches in source order. Never truncate a batch to save space — finish the current batch and continue in the next reply if the user keeps reading.
 
-**Long-source batching.** When a source yields more than 128 cards:
+**Themed batches (61 to 128 selected cards):**
 
 1. Split at the source's own section boundaries first. A section that does not fit whole goes into the next batch at an internal topic boundary.
-2. Keep card numbering continuous across batches (`卡片 1 / Card 1` through `卡片 128 / Card 128`). Batches are transport, not separate decks — the whole output is one deck that arrives in pieces.
+2. Keep card numbering continuous from 1 through the actual deck size. Batches are transport, not separate decks.
 3. Deliver batches in order, and state after each batch which one comes next.
 4. After the final batch, emit the footer once.
 
-**0 candidates** — produce no cards. Say the source contains only plans or open questions and ask for material with actual content.
+**0 candidates** — produce no cards. State why this particular source yielded none (for example, plans only, unanswered questions, or no checkable claims). Ask for material with a supported claim.
 
 Never invent a card to reach any number. A fabricated card is a worse failure than a short deck.
 
@@ -201,13 +201,13 @@ Derived figures belong in the Example field, never in the core knowledge.
 Before delivering, check each card against these. Any "no" means rewrite or cut the card; do not ship it.
 
 1. Is every factual statement traceable to a specific line in the source?
-2. Did any number, date, name, or causal claim appear that the source does not contain? (Derived figures shown with their calculation are exempt; see the rule above.)
-3. Does the card cover one idea, or did two get fused?
-4. Does another card say substantially the same thing — sharing a claim, not merely a topic?
+2. Are the numbers, dates, names, and causal claims all supported by the source? Show the calculation for any derived figure.
+3. Does the card cover just one idea?
+4. Is this claim distinct from every other card, even if several share a topic?
 5. Can a reader follow the reasoning in the plain explanation without the original article?
 6. Does the Example or the self-test answer point back into this same card?
-7. Did any term get a definition the source does not supply?
-8. Did the source's disclaimer survive into the output?
+7. Are all term explanations grounded in the source's usage, with missing definitions marked?
+8. If there is a source disclaimer, is it preserved where Step 1 requires?
 9. If the deck is batched, is every batch present with continuous numbering and no duplicates across batches?
 
 **Cutting a card.** When the core knowledge survives but the plain explanation cannot be written without inventing facts, do not pad and do not fabricate. Cut the card and lower the count, then note it in the footer. A deck of 4 honest cards beats a deck of 6 with 2 invented explanations.
@@ -230,7 +230,7 @@ Follow with a footer of at most four lines:
 **来源声明 / Source disclaimer**: <verbatim disclaimer — this line is included only when the source carries one, and is omitted entirely otherwise>
 ```
 
-Write the footer in the card language. Omit the disclaimer line when there is no disclaimer; do not write 无. When the source is thin, say so in the `未收录` line. When the deck is batched, state the batch index in the `卡片数` line (`卡片数 / Cards`: 32 of 128, batch 2/4). Distinguish the two omission reasons when both apply:
+Write the footer in the card language. Omit the disclaimer line when there is no disclaimer; do not write 无. When the source is thin, say so in the `未收录` line. Put batch progress in each batch heading, not in the footer. Emit the footer only after the last card, with the total for the whole deck. Distinguish the two omission reasons when both apply:
 
 ```
 **未收录 / Omitted**: 合并——C 与 D 讲同一机制，保留 C。超上限——E、F 未收录，因为候选超过 128 张。

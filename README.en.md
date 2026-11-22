@@ -2,9 +2,9 @@
 
 Turn an article — or a local Markdown / TXT file — into **up to 128 knowledge cards**. Each card carries exactly one idea, with a title, the core knowledge, a plain explanation, and either a concrete example drawn from the source or a self-test question.
 
-This is an Agent Skill: it outputs one Markdown document, with no interface, no dependencies, and no network access. The repository also ships a local GUI and a 2.5 MB Windows executable.
-
-**Since v0.1.5 the GUI covers what happens after generation**: cards go into a local library where they can be edited field by field, tagged, exported to Anki / Obsidian / JSON, and scheduled for spaced review (an SM-2 variant). Source texts and cards never leave the machine.
+**Choose a workflow:**
+- For model-assisted selection and explanation, use the [Agent Skill](skills/make-knowledge-cards/SKILL.md). Your chosen model processes the source and returns Markdown.
+- For local-only extraction, editing, exports and spaced review, run `npm run serve` from the repository root and open <http://127.0.0.1:5178>, or run `release/knowledge-cards.exe` on Windows. The GUI uses rules, not a model, and does not import the Skill's Markdown output.
 
 [中文说明](README.md) · **Live demo**: <https://qianwinner.github.io/article-to-knowledge-cards/> (runs in the browser, nothing to download)
 
@@ -57,8 +57,8 @@ Hard constraints, not preferences: no outside definitions, no real-world statist
 | Strong candidates | Output |
 |---|---|
 | ≤ 128 | One card each, nothing omitted |
-| > 128 | The excess is deferred or omitted, noted in the footer |
-| 0 | No cards; the source contains only plans or open questions |
+| > 128 | The Skill keeps the 128 highest-ranked candidates and names omitted topics in the final footer |
+| 0 | No cards; explain why this source yielded no checkable claims |
 
 ### Long-source batching
 
@@ -114,7 +114,7 @@ cd article-to-knowledge-cards
 npm run serve        # http://127.0.0.1:5178
 ```
 
-Or open the live demo. To build the Windows executable, `npm install` is required.
+Or open the live demo. Only the Tauri CLI commands (such as `npm run tauri:dev`) require npm development dependencies.
 
 ---
 
@@ -240,7 +240,7 @@ Degradation is real, not decorative: `prefers-reduced-motion` returns everything
 | Tags & filters | Tag cards, filter by status / source / keyword / "needs explanation" |
 | Spaced repetition | SM-2 variant with three grades (again / hard / good); the nav badge lights up when cards come due |
 | Four exports | Markdown / Anki CSV / JSON (with schedule state, re-importable) / Obsidian wikilinks |
-| Backup | The whole library exports to one JSON file and imports back |
+| Backup | JSON includes the filtered cards, their review schedules and the **full text of their sources**. Clear filters to back up all cards; check the source text before sharing. Import merges by ID without overwriting existing cards. Older exports cannot restore source text they never included |
 
 **Why SM-2 and not FSRS**: FSRS fits the forgetting curve with 17 weights, which is better — but those weights need calibrating against your own review history. Without data, FSRS gives you an interval that *looks* advanced and isn't trustworthy. Revisit once you have a hundred cards and real "remembered / forgot" records.
 
@@ -262,11 +262,10 @@ The engine contains no LLM. It does structured extraction and rule filtering; de
 ## 8. Build the Windows executable
 
 ```bash
-npm install
 npm run build:exe          # release/knowledge-cards.exe (~2.5 MB)
 ```
 
-Prerequisites on Windows: Node.js ≥ 18, a Rust toolchain, and **Visual Studio Build Tools 2022** (MSVC linker + Windows SDK). See the Chinese README for the exact `vs_BuildTools.exe` invocation.
+Prerequisites on Windows: Git Bash, Node.js ≥ 18 on `PATH`, a Rust MSVC toolchain, and **Visual Studio Build Tools 2022** (MSVC linker + Windows SDK). No Python installation is needed.
 
 The build **must** set `RUSTFLAGS="--cfg has_std"`, otherwise compilation fails with `error[E0107]`. `has_std` is not a built-in rustc flag — it is emitted by `indexmap`'s build script via `autocfg`, and the probe fails on Rust 1.99, pushing `indexmap` into a `no_std` branch whose `IndexMap` lacks a default type parameter that `schemars` relies on. `scripts/build-exe.sh` sets the flag internally. Full analysis is in the Chinese README.
 
@@ -275,17 +274,17 @@ The build **must** set `RUSTFLAGS="--cfg has_std"`, otherwise compilation fails 
 ## 9. Tests
 
 ```bash
-npm test                # all six suites (~200 assertions)
+npm test                # all six suites
 npm run test:engine     # rule engine only
 npm run test:scheduler  # scheduler + library
 npm run test:exporters  # export formats
 npm run check:ui        # UI contract: ids, class names, module exports, action branches
-npm run check:version   # version consistency across three files
+npm run check:version   # npm manifest and lockfile, Cargo and Tauri configuration
 ```
 
 No `npm install` needed. Four fictional fixtures × 13 constraints, plus dedicated blocks for anti-padding behaviour, disclaimer preservation, text joining and boundary handling. GitHub Actions runs the same suites on every push and pull request.
 
-`check:ui` exists because no headless browser is available on the maintainer's machine — static checks stand in for the runtime coverage CI otherwise cannot provide. It catches the three failure modes with the worst signal-to-noise ratio: querying an id that doesn't exist (crashes immediately), using a class name with no stylesheet rule (vanishes from the UI without an error), and misspelling a module method (`undefined is not a function`). **It does not cover real rendering or interaction** — that still needs a human.
+`check:ui` catches missing element IDs, undefined CSS classes and misspelled module methods without starting a browser. It does not test real interaction. After UI changes, try generating cards from two sources, filtering and exporting one, importing it in a separate browser profile, then reviewing a restored card.
 
 ---
 

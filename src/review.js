@@ -20,7 +20,7 @@ const Review = (() => {
   function init(opts = {}) {
     onChange = opts.onChange || (() => {});
     document.addEventListener('keydown', (e) => {
-      if (!isActive()) return;
+      if (!isActive() || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
       if (e.key === ' ' || e.key === 'Enter') {
         if (revealed) return;
         e.preventDefault();
@@ -152,13 +152,8 @@ const Review = (() => {
 
   /** 自评按钮上预告「按下之后多久再见」，让间隔决策有依据 */
   function gradeBtn(kind, label, card) {
-    const next = Scheduler.review(card, kind);
-    const dueTs = next.due;
-    const diff = dueTs - Date.now();
-    let when;
-    if (diff < 60000) when = '10 分钟后';
-    else if (diff < Scheduler.DAY) when = `${Math.round(diff / 3600000)} 小时后`;
-    else when = `${Math.round(diff / Scheduler.DAY)} 天后`;
+    const now = Date.now();
+    const when = Scheduler.dueLabel(Scheduler.review(card, kind, now), now);
     const cls = kind === 'again' ? 'is-again' : kind === 'hard' ? 'is-hard' : 'is-good';
     return `<button class="grade-btn ${cls}" data-grade="${kind}" type="button">
       <span class="grade-label">${label}</span>

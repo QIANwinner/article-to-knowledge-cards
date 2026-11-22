@@ -6,9 +6,9 @@
 
 把一篇文章或一个本地 Markdown / TXT 文件，转成**最多 128 张知识卡片**。每张卡片只讲一个知识点，附带标题、核心知识、简明解释，以及一个例子或一道自测题。
 
-这是一个 Agent Skill，只输出一份 Markdown 文本，没有界面、没有依赖、不联网。仓库同时附带一个本地 GUI 与 2.5 MB 的 Windows 可执行文件。
-
-**v0.1.5 起，GUI 补上了「生成之后」那一段**：卡片会存进本地卡片库，可以逐张编辑、打标签、导出到 Anki / Obsidian / JSON，并按间隔重复（SM-2 变体）安排复习。原文与卡片都只留在本机。
+**选哪种用法？**
+- 要模型根据上下文取舍、解释知识点：使用 [Agent Skill](skills/make-knowledge-cards/SKILL.md)，结果是 Markdown。原文由你选用的模型处理。
+- 要原文不离开本机，或要编辑、导出、间隔复习：在仓库根目录运行 `npm run serve`，打开 <http://127.0.0.1:5178>；Windows 也可运行 `release/knowledge-cards.exe`。GUI 用本地规则生成，不调用模型，也不导入 Skill 的 Markdown 输出。
 
 **English README**: [README.en.md](README.en.md) · **在线 Demo**: [qianwinner.github.io/article-to-knowledge-cards](https://qianwinner.github.io/article-to-knowledge-cards/)（浏览器直接用，无需下载）
 
@@ -49,7 +49,7 @@
 | 标签与筛选 | 打标签，按状态、来源、关键词、「只看待补解释」筛选 |
 | 间隔重复 | SM-2 变体 + 三档自评（想不起来 / 很费力 / 想起来了），到期时导航徽标亮起 |
 | 四种导出 | Markdown / Anki CSV / JSON（含调度状态，可原样导回）/ Obsidian 双链笔记 |
-| 备份导入 | 库导出为单个 JSON 文件，换机器或换浏览器时导入回来 |
+| 备份导入 | 「JSON 备份（含原文）」保存当前筛选的卡片、复习进度和关联文章全文。备份所有卡片前先清除筛选；分享前检查原文。导入按 ID 合并，不覆盖已有卡片。旧 JSON 没有附带的文章全文无法还原 |
 | 质量报告 | 展开可看到每个候选为什么被拒、哪些解释是原文没写的、哪些重复被合并 |
 
 > **为什么是 SM-2 而不是 FSRS**：FSRS 用 17 个权重拟合遗忘曲线，效果更好，但权重需要按个人数据标定。没有标定数据时套FSRS，只会得到一个「看起来高级但不可信」的间隔。等卡片过百、有真实的「记得/忘了」记录，再换不迟。
@@ -90,8 +90,8 @@
 | 强候选数量 | 产出 |
 |---|---|
 | ≤ 128 | 一候选一卡，全部保留，无需省略 |
-| > 128 | 超出部分延后或省略，footer 说明 |
-| 0 | 不出卡，提示原文只有计划或未决问题 |
+| > 128 | Skill 按候选优先级保留 128 张，footer 说明省略的主题 |
+| 0 | 不出卡，说明原文未产生可核验主张的原因 |
 
 原文偏薄时（只有两三个观点），就只出两三张卡，footer注明偏薄。
 
@@ -109,7 +109,7 @@
 | 26 到 60 | 单批输出，但按原文小节分组 |
 | 61 到 128 | **按主题分批**，每批一个标题，卡片编号跨批连续 |
 
-超过 128 张时，在原文自己的小节边界切分；小节内部放不下时，在话题边界切。分批只是传输方式，不是拆成多副牌组 —— 编号从「卡片 1」连续到「卡片 128」，footer 只在最后一批出现一次。
+先选卡，再在原文的小节或话题边界分批。分批不重置上限：卡号从 1 连续到实际总数，footer 只在最后一批出现一次。
 
 即使你要求「一次给全」，超过约 60 张仍会分批，并说明原因。
 
@@ -197,7 +197,7 @@ cd article-to-knowledge-cards
 npm run serve        # 打开 http://127.0.0.1:5178
 ```
 
-不需要 `npm install` —— 前端零依赖运行。只有要打包 exe 时才需要装依赖。
+预览和测试不需要 `npm install`。只有直接使用 Tauri CLI（例如 `npm run tauri:dev`）才需要安装 npm 开发依赖。
 
 也可以直接用在线版（GitHub Pages，零构建）：<https://qianwinner.github.io/article-to-knowledge-cards/>
 
@@ -324,9 +324,9 @@ article-to-knowledge-cards/
 │   ├── Cargo.toml
 │   └── icons/                            # 应用图标（含 icon.ico）
 ├── scripts/
-│   ├── test-engine.js                     # 引擎规则测试（61 项断言）
-│   ├── test-scheduler.js                  # 调度器与卡片库测试（54 项断言）
-│   ├── test-exporters.js                  # 导出格式测试（39 项断言）
+│   ├── test-engine.js                     # 引擎规则与边界测试
+│   ├── test-scheduler.js                  # 调度器、存储与备份往返测试
+│   ├── test-exporters.js                  # 导出格式测试
 │   ├── check-skill.js                     # Skill 结构自检
 │   ├── check-ui-contract.js               # UI 契约自检（id / 类名 / 模块导出 / 动作分支）
 │   ├── check-version.js                   # 版本号一致性（package.json 为唯一源）
@@ -399,7 +399,7 @@ article-to-knowledge-cards/
 |---|---|
 | 粘贴文本 | 直接在输入框粘贴，支持 Markdown / TXT |
 | 选择文件 | 点「选择文件」载入 `.md` / `.markdown` / `.txt`，非支持格式会明确拒绝 |
-| 生成卡片 | 点「生成卡片」或按 `Ctrl+Enter` |
+| 生成卡片 | 在生成页点按钮或按 `Ctrl+Enter` / `Cmd+Enter`。改动原文会清除旧预览，需要重新生成；已入库卡片不受影响 |
 | 复制提示词 | 把 SKILL.md 的硬约束压成一段提示词连同来源一起复制到剪贴板，交给模型补语义解释 |
 | 存入卡片库 | 一键把这批卡片连同原文存到本机，之后可编辑、打标签、导出、复习 |
 | 复制 / 下载 | 导出为标准 Markdown，含 footer 统计与原文声明 |
@@ -434,13 +434,13 @@ npm run serve        # 打开 http://127.0.0.1:5178
 ### 本地测试
 
 ```bash
-npm test                    # 六组全跑（约 200 项断言）
-npm run test:engine         # 规则引擎（61 项）
-npm run test:scheduler      # 调度器与卡片库（54 项）
-npm run test:exporters      # 导出格式（39 项）
-npm run check:ui            # UI 契约：id / 类名 / 模块导出 / 动作分支（47 项）
+npm test                    # 六组全跑
+npm run test:engine         # 规则引擎
+npm run test:scheduler      # 调度器、卡片库及备份往返
+npm run test:exporters      # 导出格式
+npm run check:ui            # UI 契约：id / 类名 / 模块导出 / 动作分支
 npm run check:skill         # Skill 结构自检
-npm run check:version       # 三处版本号一致性
+npm run check:version       # npm 清单与锁文件、Cargo 和 Tauri 配置一致性
 ```
 
 前端零依赖运行，所有检查只需 Node.js，**不需要 `npm install`**。
@@ -449,7 +449,7 @@ npm run check:version       # 三处版本号一致性
 
 导出测试里有一项容易被忽略：卡片正文含换行时，CSV 记录不能按行数统计，否则一条记录会被算成多条。测试里自带了一个按引号规则解析的 CSV 读取器，专门盯住这类静默错误。
 
-`check:ui` 存在的理由：本机没有可用的无头浏览器，界面层的运行时错误 CI 拦不住。它用静态检查覆盖三类最容易出、后果最直接的问题——JS 查询了不存在的 id（运行时必崩）、用了没有定义的类名（界面上凭空消失但不报错）、模块方法名拼错（`undefined is not a function`）。**它覆盖不到真实渲染与交互**，那部分仍需人工过一遍。
+`check:ui` 不启动浏览器，检查 JS 是否查询了不存在的 id、用了未定义的类名、或拼错模块方法名。它不覆盖真实渲染与交互。界面改动后可用两篇不同文章走一遍「改原文 → 重新生成 → 存入库 → 按来源筛选并备份 → 在独立浏览器配置中导入 → 复习」，核对来源、内容和进度。
 
 GitHub Actions 会在每次推送与 PR 上跑同一套检查。
 
@@ -458,7 +458,6 @@ GitHub Actions 会在每次推送与 PR 上跑同一套检查。
 ### 构建 Windows exe
 
 ```bash
-npm install                # 仅打包 exe 时需要
 npm run build:exe          # 产出 release/knowledge-cards.exe（约 2.5 MB）
 ```
 
@@ -466,7 +465,7 @@ npm run build:exe          # 产出 release/knowledge-cards.exe（约 2.5 MB）
 
 **前置条件**（Windows）
 
-1. Node.js ≥ 18
+1. Git Bash、Node.js ≥ 18（`node` 在 `PATH` 上，无需 Python）
 2. Rust 工具链：`rustup-init.exe -y`
 3. **Visual Studio Build Tools 2022** —— Rust 在 Windows 上编译必须依赖 MSVC 链接器与 Windows SDK：
    ```bash
@@ -574,16 +573,16 @@ npm run check:version     # 只跑版本号一致性
 
 | 样本 | 类型 | Skill 侧验证点 | 引擎输出 |
 |---|---|---|---|
-| `01-tech-cache.md` | 英文技术文 | 四级 tie-break、省省略说明 | 14 张（口径提示 9，解释缺口 8） |
+| `01-tech-cache.md` | 英文技术文 | 四级 tie-break、省略说明 | 14 张（口径提示 10，解释缺口 8） |
 | `02-news-foldable-cn.md` | 中文长分析文 | 重复论述去重、口径不一致标注、虚构声明保留 | 22 张（口径提示 13，声明 2 段全部落位） |
 | `03-thin-notes.txt` | 极简短笔记 | 只出 2 张卡且不凑数、待办与未决事项不制卡 | 2 张（与 Skill 侧一致） |
-| `04-rust-ownership.md` | 技术讲义 | 代码块与编译器报错的落位、术语兜底边界 | 11 张（口径提示 7） |
+| `04-rust-ownership.md` | 技术讲义 | 代码块与编译器报错的落位、术语兜底边界 | 11 张（口径提示 8） |
 
 > ⚠️ **所有样本均为虚构测试数据**，标题、数字、厂商与结论均不对应任何真实企业、产品或市场判断，仅用于检验 Skill 行为。每个样本文件头部都写明了这一点。
 
 ### 规则引擎测试
 
-`npm test` 跑 **61 项断言**，覆盖：
+`npm run test:engine` 覆盖：
 
 - **13 项硬约束** × 4 类样本：卡片数上限、编号连续、无多句熔合、内容可溯源（核心知识/标题/口径提示/被引用的解释）、字段齐全、例子与自测二选一、计划类内容既不成卡也不混入其他卡、无占位符残留、标题与正文同源、解释字段不是模板句、解释来源标注正确、解释不是核心知识的复制、口径提示非空时必有原文依据
 - **不凑数行为**：纯计划内容必须输出 0 张；极简样本不超过 3 张
@@ -631,7 +630,7 @@ Skill 说明书经过三轮迭代：每轮用子代理按 `SKILL.md` 实际跑�
 
 | 情况 | 现状 |
 |---|---|
-| 浏览器端未做渲染回归测试 | 本机无可用无头浏览器，`check:ui` 只做静态契约检查。真实渲染与交互需人工过一遍 |
+| CI 没有浏览器渲染回归 | `check:ui` 只检查契约，不代替真实浏览器的交互验收 |
 | 复习算法未按个人数据标定 | 现在是固定参数的 SM-2 变体。卡片过百、有真实「记得/忘了」记录后才值得换成 FSRS 并标定权重 |
 | UI 语言仍只有中文 | 英文版 README 已就绪，界面本身还没有 i18n |
 
