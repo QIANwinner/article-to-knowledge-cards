@@ -14,6 +14,7 @@ const Review = (() => {
   let queue = [];
   let pos = 0;
   let revealed = false;
+  let grading = false;
   let onChange = () => {};
   let reviewedCount = 0;
 
@@ -46,9 +47,15 @@ const Review = (() => {
     render();
   }
 
-  /** 外部改动了卡片库（删除、编辑、导入）后重置队列 */
+  /** 刷新尚未复习的部分；其他窗口新增卡片时不打断当前翻面。 */
   function refresh() {
-    start();
+    const id = queue[pos]?.id;
+    const remaining = Scheduler.dueQueue(Store.listCards());
+    const i = remaining.findIndex((c) => c.id === id);
+    if (i > 0) remaining.unshift(...remaining.splice(i, 1));
+    if (i < 0) revealed = false;
+    queue = queue.slice(0, pos).concat(remaining);
+    render();
   }
 
   function reveal() {
@@ -56,16 +63,23 @@ const Review = (() => {
     render();
   }
 
-  function grade(kind) {
+  async function grade(kind) {
     const card = queue[pos];
-    if (!card) return;
-    const next = Scheduler.review(card, kind);
-    Store.updateCard(card.id, next);
-    reviewedCount += 1;
-    revealed = false;
-    pos += 1;
-    onChange();
-    render();
+    if (!card || !revealed || grading) return;
+    grading = true;
+    await UI.writeLibrary(() => {
+      if (queue[pos]?.id !== card.id || !revealed) return;
+      const latest = Store.getCard(card.id);
+      if (latest && Scheduler.isDue(latest)) {
+        Store.updateCard(card.id, Scheduler.review(latest, kind));
+        reviewedCount += 1;
+        pos += 1;
+      }
+      revealed = false;
+      onChange();
+      refresh();
+    });
+    grading = false;
   }
 
   function render() {

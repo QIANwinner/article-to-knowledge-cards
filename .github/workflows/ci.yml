@@ -12,9 +12,9 @@ jobs:
     name: 引擎 / 调度器 / 契约检查
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
 
@@ -54,3 +54,9 @@ jobs:
 
       - name: UI 契约自检
         run: node scripts/check-ui-contract.js
+
+      - name: 安装隔离的浏览器测试依赖
+        run: npm ci --prefix tests/browser --ignore-scripts --no-audit --no-fund
+
+      - name: Edge 多标签页回归
+        run: npm --prefix tests/browser test

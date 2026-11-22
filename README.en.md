@@ -46,6 +46,8 @@ Field labels stay bilingual in every language; card body language follows the so
 
 Candidates that restate the same claim, or where one is meaningless without the other's sentence, merge into one card. Candidates that **share a sentence but each carry a payload the other lacks** (a different figure, a different conclusion, a different step of the mechanism) stay as two cards.
 
+That semantic decision belongs to the Skill. The local GUI only merges identical candidate text: a one-word change can reverse a rule. Paraphrases may remain as separate cards.
+
 ### No fabrication
 
 Hard constraints, not preferences: no outside definitions, no real-world statistics, no names the source omitted, no invented authority. Examples come from the source, or are shown calculations over the source's own figures. Terminated claims ("as of last week") are never converted into calendar dates.
@@ -242,6 +244,8 @@ Degradation is real, not decorative: `prefers-reduced-motion` returns everything
 | Four exports | Markdown / Anki CSV / JSON (with schedule state, re-importable) / Obsidian wikilinks |
 | Backup | JSON includes the filtered cards, their review schedules and the **full text of their sources**. Clear filters to back up all cards; check the source text before sharing. Import merges by ID without overwriting existing cards. Older exports cannot restore source text they never included |
 
+On browsers with Web Locks, tabs of the same origin serialize library writes. Edits to different fields can coexist; a conflict in the same field leaves the draft in place instead of overwriting another tab. Reload old tabs after upgrading. Use one writing tab in environments without Web Locks.
+
 **Why SM-2 and not FSRS**: FSRS fits the forgetting curve with 17 weights, which is better — but those weights need calibrating against your own review history. Without data, FSRS gives you an interval that *looks* advanced and isn't trustworthy. Revisit once you have a hundred cards and real "remembered / forgot" records.
 
 ### The rule engine
@@ -284,6 +288,8 @@ npm run check:version   # npm manifest and lockfile, Cargo and Tauri configurati
 
 No `npm install` needed. Four fictional fixtures × 13 constraints, plus dedicated blocks for anti-padding behaviour, disclaimer preservation, text joining and boundary handling. GitHub Actions runs the same suites on every push and pull request.
 
+There is also an isolated browser suite (Node.js 20+, installed Microsoft Edge or `CHROMIUM_PATH` pointing to a Chromium executable). Run `npm ci --prefix tests/browser`, then `npm --prefix tests/browser test`. It opens two tabs in a fresh browser context, exercises concurrent saves, edit conflicts and grading, then reloads to check the persisted result.
+
 `check:ui` catches missing element IDs, undefined CSS classes and misspelled module methods without starting a browser. It does not test real interaction. After UI changes, try generating cards from two sources, filtering and exporting one, importing it in a separate browser profile, then reviewing a restored card.
 
 ---
@@ -309,7 +315,7 @@ No `npm install` needed. Four fictional fixtures × 13 constraints, plus dedicat
 | The source offers no explanation | Flagged as "not provided in the source"; semantics are left to the model via **Copy prompt**, or filled in by hand in the library |
 | Semantic-level contradictions | No caveat is emitted — the engine would rather under-report than invent a conflict |
 | Code block placement | Fenced blocks are skipped; the Skill's "code to Example, compiler errors to core knowledge" rule is executed by the model |
-| No browser render tests | `check:ui` is static only; real rendering and interaction need a manual pass |
+| Limited browser coverage | CI exercises two-tab interactions in Edge. It is not a cross-browser visual regression suite |
 | Review algorithm uncalibrated | Fixed-parameter SM-2 variant. Worth moving to calibrated FSRS once you have a hundred cards and real review history |
 | Chinese-only UI | The English README is here; the interface itself has no i18n yet |
 

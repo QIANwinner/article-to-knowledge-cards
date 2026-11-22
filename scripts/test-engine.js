@@ -196,6 +196,13 @@ console.log('\n[专项] 不改变主张');
   check(cards.length > 0 && cards.every((c) => disclaimer.every((d) => c.caveat.includes(d))),
     '含数字卡保留完整多行声明，包括短声明');
 
+  const allow = '归档流程默认允许审核人员在关账之后重新打开已经归档的记录。';
+  const deny = allow.replace('允许', '不允许');
+  const rules = Engine.generate([allow, deny, allow].join('\n\n'));
+  check(rules.cards.length === 2 && rules.cards[0].core === allow && rules.cards[1].core === deny &&
+    rules.stats.merged === 1 && rules.cards[0].mergedTexts[0] === allow,
+    '一字之差的相反结论分别保留；真正重复的句子仍计入质量报告');
+
   const plan = '待办：因为空间不足，下周准备把备份的统计口径改为 5 天。';
   const r = Engine.generate(`${claim}${plan}`);
   check(r.cards.length === 1 && r.rejected.some((c) => c.text === plan) &&

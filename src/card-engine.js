@@ -32,8 +32,7 @@ const Engine = (() => {
     coreDisplay: 220,      // core 展示上限（超长单句截断，不改内容来源）
     minParaChars: 12,      // 段落短于此值不成候选
     minQualifyChars: 24,   // 候选短于此值不通过资格判定
-    titleMax: 42,          // 标题截取长度
-    dedupeThreshold: 0.72  // 2-gram Jaccard 去重阈值
+    titleMax: 42           // 标题截取长度
   };
 
   /* ---------- 文本切分 ---------- */
@@ -333,7 +332,7 @@ const Engine = (() => {
     return t.toLowerCase().replace(/[^a-z0-9一-龥]+/g, '');
   }
 
-  /** 2-gram（中文）/ 词级（英文）Jaccard 相似度，用于识别重复论述 */
+  /** 排除与核心知识太相似的候选解释；不用于判定两条主张是否等价。 */
   function similarity(a, b) {
     const grams = (s) => {
       const out = new Set();
@@ -353,29 +352,19 @@ const Engine = (() => {
   }
 
   function dedupe(qualified) {
-    const kept = [];
-    const numbered = new Map();
-    const unnumbered = [];
+    const kept = new Map();
     for (const cand of qualified) {
-      // 数字、小数点、单位或正负号都可能是主张本身，含数字时只合并原文相同的句子。
-      let dup;
-      if (/\d/.test(cand.text)) {
-        dup = numbered.get(cand.text);
-        if (!dup) numbered.set(cand.text, cand);
-      } else {
-        cand.norm = normalize(cand.text);
-        dup = unnumbered.find((k) => similarity(k.norm, cand.norm) > LIMITS.dedupeThreshold);
-        if (!dup) unnumbered.push(cand);
-      }
+      // 仅一字不同也可能是相反的规则。没有语义模型时不按字面相似度删卡。
+      const dup = kept.get(cand.text);
       if (dup) {
         dup.mergedFrom = (dup.mergedFrom || 1) + 1;
         // 记下被合并掉的句子：质量报告要能回答「哪几句被算成了重复」
         (dup.mergedTexts = dup.mergedTexts || []).push(cand.text);
         continue;
       }
-      kept.push(cand);
+      kept.set(cand.text, cand);
     }
-    return kept;
+    return [...kept.values()];
   }
 
   /* ---------- 卡片构建 ---------- */

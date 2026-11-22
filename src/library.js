@@ -31,9 +31,9 @@ const Library = (() => {
       const action = btn.dataset.action;
       if (action === 'edit') startEdit(id, deck);
       else if (action === 'cancel-edit') render();
-      else if (action === 'save-edit') saveEdit(id, deck);
+      else if (action === 'save-edit') UI.writeLibrary(() => saveEdit(id, deck));
       else if (action === 'delete') remove(id);
-      else if (action === 'master') setMastered(id);
+      else if (action === 'master') UI.writeLibrary(() => setMastered(id, btn.dataset.mastered === 'true'));
       else if (action === 'source') showSource(id);
     });
 
@@ -55,8 +55,9 @@ const Library = (() => {
       try {
         const text = await readFileAsText(file);
         const data = JSON.parse(text);
-        const res = Store.importAll(data, 'merge');
-        toast(`导入完成，当前库：${res.cards} 张卡片 / ${res.sources} 个来源`, 'ok');
+        const res = await Store.withWriteLock(() => Store.importAll(data, 'merge'));
+        if (Store.persistent()) toast(`导入完成，当前库：${res.cards} 张卡片 / ${res.sources} 个来源`, 'ok');
+        else toast('仅导入到本次会话，关闭前请导出 JSON 备份', 'err');
         render();
         onChange();
       } catch (err) {
@@ -147,7 +148,7 @@ const Library = (() => {
         <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${escapeHtml(c.id)}" type="button">
           ${Icons.icon('edit', { size: 13 })}<span>编辑</span>
         </button>
-        <button class="btn btn-ghost btn-sm" data-action="master" data-id="${escapeHtml(c.id)}" type="button">
+        <button class="btn btn-ghost btn-sm" data-action="master" data-id="${escapeHtml(c.id)}" data-mastered="${st.status !== 'mastered'}" type="button">
           ${Icons.icon(st.status === 'mastered' ? 'rotate' : 'check', { size: 13 })}<span>${st.status === 'mastered' ? '取消掌握' : '标记已掌握'}</span>
         </button>
         <button class="btn btn-ghost btn-sm" data-action="source" data-id="${escapeHtml(c.id)}" type="button">
@@ -225,33 +226,34 @@ const Library = (() => {
 
   function saveEdit(id, deck) {
     const c = Store.getCard(id);
-    if (!c) return;
+    if (!c) {
+      toast('这张卡已被删除。当前输入仍在，可复制后取消编辑', 'err');
+      return;
+    }
     const card = deck.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
     if (!card) return;
-    const val = (f) => {
-      const el = card.querySelector(`[data-f="${f}"]`);
-      return el ? el.value : '';
-    };
-
-    const plain = val('plain');
-    const patch = {
-      title: val('title').trim() || c.title,
-      core: val('core'),
-      plain,
-      caveat: val('caveat').trim(),
-      example: val('example')
-    };
-
-    // 人工补了解释就不要再显示「原文未提供」——那是对引擎状态的描述，不是对人的评价
-    if (c.plainGap && plain && plain !== c.plain) {
+    const patch = {};
+    for (const input of card.querySelectorAll('[data-f]')) {
+      const key = input.dataset.f;
+      if (input.value === input.defaultValue) continue;
+      const current = key === 'tags' ? (c.tags || []).join(', ') : (c[key] || '');
+      if (current.replace(/\r\n?/g, '\n') !== input.defaultValue && current !== input.value) {
+        toast('同一字段已在另一窗口修改，未覆盖。请先复制输入，再取消并重新编辑', 'err');
+        return;
+      }
+      if (key === 'tags') patch.tags = [...new Set(input.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean))];
+      else if (key === 'title' || key === 'caveat') patch[key] = input.value.trim();
+      else patch[key] = input.value;
+    }
+    if (patch.title === '') delete patch.title;
+    if (patch.plain === '') delete patch.plain;
+    if (patch.plain && patch.plain !== c.plain) {
       patch.plainGap = false;
       patch.plainSource = '人工补充';
     }
-    if (!patch.plain) patch.plain = c.plain;
-
-    Store.updateCard(id, patch);
-    Store.setTag(id, val('tags').split(/[,，]/).map((s) => s.trim()).filter(Boolean));
-    toast('已保存', 'ok');
+    if (Object.keys(patch).length) Store.updateCard(id, patch);
+    if (Store.persistent()) toast('已保存', 'ok');
+    else toast('修改仅在本窗口有效，关闭前请导出 JSON 备份', 'err');
     render();
     onChange();
   }
@@ -262,29 +264,36 @@ const Library = (() => {
     const c = Store.getCard(id);
     if (!c) return;
     if (!confirm(`删除这张卡片？\n\n${c.title}`)) return;
-    const src = Store.getSource(c.sourceId);
-    Store.removeCard(id);
-    toast('已删除', 'info', {
-      label: '撤销',
-      onClick: () => {
-        // restoreCard 原样放回：保留原 id 与复习进度（addCards 会把两者都重置掉）
-        Store.restoreCard(c);
-        toast('已恢复', 'ok');
-        render();
-        onChange();
-      }
+    UI.writeLibrary(() => {
+      const latest = Store.getCard(id);
+      if (!latest) return;
+      Store.removeCard(id);
+      toast('已删除', 'info', {
+        label: '撤销',
+        onClick: () => UI.writeLibrary(() => {
+          if (!Store.getCard(id)) {
+            Store.restoreCard(latest);
+            toast('已恢复', 'ok');
+          }
+          render();
+          onChange();
+        })
+      });
+      render();
+      onChange();
     });
-    //来源卡片数变化时同步来源筛选器里的计数
-    if (src) renderSourceOptions();
-    render();
-    onChange();
   }
 
-  function setMastered(id) {
+  function setMastered(id, mastered) {
     const c = Store.getCard(id);
     if (!c) return;
     const st = Scheduler.stateOf(c);
-    if (st.status === 'mastered') {
+    if ((st.status === 'mastered') === mastered) {
+      render();
+      onChange();
+      return;
+    }
+    if (!mastered) {
       Store.updateCard(id, { status: 'new', due: 0, reps: 0, streak: 0, interval: 0 });
       toast('已移回未复习');
     } else {

@@ -1,0 +1,10 @@
+{
+  "name": "knowledge-cards-browser-tests",
+  "private": true,
+  "scripts": {
+    "test": "node multitab.js"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.1"
+  }
+}

@@ -407,23 +407,28 @@
     );
   });
 
-  el.btnSave.addEventListener('click', () => {
-    if (!state.cards.length) return;
-    const src = Store.addSource({
-      name: state.sourceName || '粘贴的文本',
-      text: state.sourceText,
-      disclaimers: state.disclaimers,
-      kind: state.sourceName ? 'file' : 'paste'
-    });
-    const added = Store.addCards(src.id, state.cards);
-    state.saved = true;
-    refreshBadges();
+  el.btnSave.addEventListener('click', async () => {
+    const batch = state.cards;
+    if (!batch.length || state.saved) return;
     el.btnSave.disabled = true;
-    const persisted = Store.persistent();
-    toast(persisted ? `已存入卡片库：${added.length} 张` : '卡片仅在本次会话中，关闭前请导出 JSON 备份', persisted ? 'ok' : 'err', {
-      label: '去看卡片库',
-      onClick: () => showTab('library')
+    await UI.writeLibrary(() => {
+      if (batch !== state.cards || state.saved) return;
+      const src = Store.addSource({
+        name: state.sourceName || '粘贴的文本',
+        text: state.sourceText,
+        disclaimers: state.disclaimers,
+        kind: state.sourceName ? 'file' : 'paste'
+      });
+      const added = Store.addCards(src.id, batch);
+      state.saved = true;
+      refreshBadges();
+      const persisted = Store.persistent();
+      toast(persisted ? `已存入卡片库：${added.length} 张` : '卡片仅在本次会话中，关闭前请导出 JSON 备份', persisted ? 'ok' : 'err', {
+        label: '去看卡片库',
+        onClick: () => showTab('library')
+      });
     });
+    if (batch === state.cards && !state.saved) el.btnSave.disabled = false;
   });
 
   /* ---------- 提示词 ---------- */
@@ -497,6 +502,12 @@
     updateCharCount();
     renderEmpty();
     refreshBadges();
+    window.addEventListener('storage', (e) => {
+      if ((e.key !== Store.KEY && e.key !== null) || !Store.refresh()) return;
+      refreshBadges();
+      if (!UI.$('panel-library').hidden && !UI.$('lib-deck').querySelector('.card-editor')) Library.render();
+      if (Review.isActive()) Review.refresh();
+    });
     // Tauri 环境暴露给后端（用 getter，state 会被整体替换，持有引用会失效）
     if (typeof window !== 'undefined') {
       window.__app = {

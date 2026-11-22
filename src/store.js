@@ -24,9 +24,10 @@ const Store = (() => {
 
   // localStorage 不可用时（file:// 协议、隐私模式、配额耗尽）退化为内存库，
   // 界面会提示「本次会话有效」，不会静默丢数据。
-  let memory = EMPTY();
   let persistent = true;
   let cache = null;
+  let lastRaw = null;
+  let dirty = false;
 
   function backend() {
     try {
@@ -39,23 +40,22 @@ const Store = (() => {
     }
   }
 
-  function read() {
-    if (cache) return cache;
+  function read(latest = false) {
+    if (cache && (!latest || dirty)) return cache;
     const ls = backend();
-    if (!ls) {
-      cache = memory;
-      return cache;
-    }
+    if (!ls) return (cache ??= EMPTY());
     let raw;
     try {
       raw = ls.getItem(KEY);
     } catch (e) {
       persistent = false;
-      return (cache = memory);
+      return (cache ??= EMPTY());
     }
+    if (cache && raw === lastRaw) return cache;
+    lastRaw = raw;
     try {
       cache = raw === null ? EMPTY() : migrate(JSON.parse(raw));
-      if (cache.corrupted) persistent = false;
+      persistent = !cache.corrupted;
     } catch (e) {
       // 保留磁盘上的原档；本次会话可以继续使用并导出新卡。
       cache = EMPTY();
@@ -68,23 +68,40 @@ const Store = (() => {
   function write() {
     const db = read();
     db.updatedAt = Date.now();
+    dirty = true;
     if (db.corrupted) {
       persistent = false;
-      memory = db;
       return;
     }
     const ls = backend();
-    if (!ls) {
-      memory = db;
-      return;
-    }
+    if (!ls) return;
     try {
-      ls.setItem(KEY, JSON.stringify(db));
+      // 配额失败后仍能在会话中编辑和导出，但不能用这份旧快照覆盖其他窗口的新存档。
+      if (ls.getItem(KEY) !== lastRaw) {
+        persistent = false;
+        return;
+      }
+      const raw = JSON.stringify(db);
+      ls.setItem(KEY, raw);
+      lastRaw = raw;
+      dirty = false;
       persistent = true;
     } catch (e) {
-      memory = db;
       persistent = false; // 配额用尽，转内存模式但保留内存数据
     }
+  }
+
+  function refresh() {
+    const previous = cache;
+    return read(true) !== previous;
+  }
+
+  // 界面的一次读改写共用同源锁；读最新存档和计算补丁都要在拿到锁之后。
+  async function withWriteLock(action) {
+    const run = () => { refresh(); return action(); };
+    if (!backend()) return run();
+    const locks = globalThis.navigator?.locks;
+    return locks ? locks.request(KEY, run) : run();
   }
 
   function migrate(data) {
@@ -119,7 +136,7 @@ const Store = (() => {
    * 内容相等必须逐字比较：长度相同但内容不同的两篇文章不叫重复。
    */
   function addSource({ name, text, disclaimers, kind }) {
-    const db = read();
+    const db = read(true);
     const existed = listSources().find(
       (s) => s.name === name && s.text === text
     );
@@ -139,7 +156,7 @@ const Store = (() => {
   }
 
   function removeSource(id) {
-    const db = read();
+    const db = read(true);
     delete db.sources[id];
     // 级联删掉该来源下的卡片：留着没有原文可溯源的卡片是负资产
     for (const [cid, c] of Object.entries(db.cards)) {
@@ -175,7 +192,7 @@ const Store = (() => {
 
   /** 批量入库，返回实际新增的卡片数组（已附 id 与调度初始值） */
   function addCards(sourceId, cards) {
-    const db = read();
+    const db = read(true);
     const now = Date.now();
     const added = [];
     for (const c of cards) {
@@ -204,7 +221,7 @@ const Store = (() => {
   }
 
   function updateCard(id, patch) {
-    const db = read();
+    const db = read(true);
     const card = db.cards[id];
     if (!card) return null;
     Object.assign(card, patch, { updatedAt: Date.now() });
@@ -213,7 +230,7 @@ const Store = (() => {
   }
 
   function removeCard(id) {
-    const db = read();
+    const db = read(true);
     delete db.cards[id];
     write();
   }
@@ -304,10 +321,10 @@ const Store = (() => {
    */
   function importAll(data, mode = 'merge') {
     const incoming = normalizeImport(data);
+    const db = read(true);
     if (mode === 'replace') {
       cache = incoming;
     } else {
-      const db = read();
       for (const [k, v] of Object.entries(incoming.sources)) {
         if (!db.sources[k]) db.sources[k] = v;
       }
@@ -325,13 +342,14 @@ const Store = (() => {
    */
   function restoreCard(card) {
     if (!card || !card.id) return null;
-    const db = read();
+    const db = read(true);
     db.cards[card.id] = card;
     write();
     return card;
   }
 
   function clearAll() {
+    read(true);
     cache = EMPTY();
     write();
   }
@@ -350,6 +368,8 @@ const Store = (() => {
   return {
     KEY,
     VERSION,
+    refresh,
+    withWriteLock,
     persistent: () => persistent,
     listSources,
     getSource,

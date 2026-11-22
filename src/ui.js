@@ -63,6 +63,14 @@ const UI = (() => {
     slot.innerHTML = '';
   }
 
+  async function writeLibrary(action) {
+    try {
+      await Store.withWriteLock(action);
+    } catch (err) {
+      toast(`卡片库操作失败：${err.message || err}`, 'err');
+    }
+  }
+
   /** 触发浏览器下载（导出用） */
   function download(filename, content, mime = 'text/plain;charset=utf-8') {
     const blob = new Blob([content], { type: mime });
@@ -132,6 +140,7 @@ const UI = (() => {
     flash,
     toast,
     hideToast,
+    writeLibrary,
     download,
     copy,
     confirm,

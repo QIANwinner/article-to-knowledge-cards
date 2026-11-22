@@ -55,11 +55,11 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log('');
-  console.log('  卡片生成器已启动');
-  console.log(`  http://127.0.0.1:${server.address().port}`);
-  console.log('');
-  console.log('  按 Ctrl+C 停止');
-  console.log('');
-});
+if (require.main === module) {
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`卡片生成器已启动：http://127.0.0.1:${server.address().port}`);
+    console.log('按 Ctrl+C 停止');
+  });
+}
+
+module.exports = server;

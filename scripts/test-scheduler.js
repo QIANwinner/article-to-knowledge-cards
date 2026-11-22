@@ -328,12 +328,25 @@ console.log('\n[旧备份与无效导入]');
   }
 }
 
-console.log('\n[只读与损坏存档]');
+console.log('\n[多窗口、只读与损坏存档]');
 {
   const storage = makeLocalStorage();
   global.window.localStorage = storage;
   const modulePath = require.resolve('../src/store.js');
   const reload = () => { delete require.cache[modulePath]; return require(modulePath); };
+  const a = reload(), b = reload();
+  a.listCards(); b.listCards();
+  const src = a.addSource({ name: '共用来源.md', text: '原文' });
+  const [first] = a.addCards(src.id, [{ title: '甲', core: '正文甲' }]);
+  const [second] = b.addCards(src.id, [{ title: '乙', core: '正文乙' }]);
+  check(reload().listCards().length === 2 && b.getSource(src.id)?.text === '原文',
+    '两个已打开的库先后入库，两张卡及其来源都保留');
+  a.removeCard(first.id);
+  b.updateCard(second.id, { title: '乙已编辑' });
+  const reopened = reload();
+  check(!reopened.getCard(first.id) && reopened.getCard(second.id)?.title === '乙已编辑',
+    '另一窗口编辑时不会复活已删除的卡片');
+
   storage.setItem(Store.KEY, JSON.stringify({ cards: { saved: { title: '已存', core: '仍可读取' } } }));
   const previous = storage.getItem(Store.KEY);
   const put = storage.setItem;
@@ -344,6 +357,12 @@ console.log('\n[只读与损坏存档]');
   check(!full.persistent() && full.getCard('saved')?.title === '会话内编辑' && storage.getItem(Store.KEY) === previous,
     '写入失败保留会话数据，不破坏原档');
   storage.setItem = put;
+  reload().updateCard('saved', { title: '另一窗口已落盘' });
+  full.refresh();
+  full.updateCard('saved', { core: '尚未落盘的正文' });
+  check(!full.persistent() && full.getCard('saved').title === '会话内编辑' &&
+    full.exportAll().cards.saved.core === '尚未落盘的正文' && reload().getCard('saved').title === '另一窗口已落盘',
+    '会话草稿仍可备份，配额恢复也不覆盖其间其他窗口的新存档');
   storage.setItem(Store.KEY, '{');
   const corrupt = reload();
   corrupt.addSource({ name: 'new.txt', text: '新原文' });

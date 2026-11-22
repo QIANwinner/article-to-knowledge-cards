@@ -135,6 +135,8 @@ const CONTRACTS = {
     ['qualify', 'function']
   ],
   'store.js': [
+    ['refresh', 'function'],
+    ['withWriteLock', 'function'],
     ['listSources', 'function'],
     ['getSource', 'function'],
     ['addSource', 'function'],
