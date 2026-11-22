@@ -10,29 +10,39 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
+  upload:
+    name: 打包在线 Demo
+    runs-on: ubuntu-latest
+    env:
+      # 重跑整条流程时使用新名字；只重试部署时沿用已上传的名字。
+      ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
+    outputs:
+      artifact_name: ${{ env.ARTIFACT_NAME }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: './src'
+
   deploy:
     name: 部署在线 Demo
+    needs: upload
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/configure-pages@v5
-
-      # 前端零依赖、零构建：src/ 本身就是可发布的静态站点
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: './src'
-
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: ${{ needs.upload.outputs.artifact_name }}
