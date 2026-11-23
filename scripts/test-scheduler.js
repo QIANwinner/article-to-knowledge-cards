@@ -328,6 +328,33 @@ console.log('\n[旧备份与无效导入]');
   }
 }
 
+console.log('\n[备份 ID 冲突]');
+{
+  const backup = {
+    sources: { clash: { id: 'clash', name: 'new.md', text: '新原文' } },
+    cards: {
+      clash: {
+        id: 'clash', sourceId: 'clash', index: 1,
+        title: '新卡', core: '新核心', raw: '新核心'
+      }
+    }
+  };
+  Store.importAll({
+    sources: { clash: { id: 'clash', name: 'old.md', text: '旧原文' } },
+    cards: { clash: { id: 'clash', sourceId: 'clash', index: 1, title: '旧卡', core: '旧核心', raw: '旧核心' } }
+  }, 'replace');
+  Store.importAll(backup);
+  const imported = Store.listCards().find((c) => c.core === '新核心');
+  check(Store.listSources().length === 2 && Store.listCards().length === 2,
+    'ID 相同但内容不同的来源与卡片都会保留');
+  check(!!imported && imported.id !== 'clash' && imported.sourceId !== 'clash' &&
+    Store.getSource(imported.sourceId)?.text === '新原文',
+    '撞名卡片改发新 ID，并关联到改发后的新来源');
+  Store.importAll(backup);
+  check(Store.listSources().length === 2 && Store.listCards().length === 2,
+    '重映射后的备份再次导入不会重复');
+}
+
 console.log('\n[多窗口、只读与损坏存档]');
 {
   const storage = makeLocalStorage();

@@ -242,7 +242,7 @@ Degradation is real, not decorative: `prefers-reduced-motion` returns everything
 | Tags & filters | Tag cards, filter by status / source / keyword / "needs explanation" |
 | Spaced repetition | SM-2 variant with three grades (again / hard / good); the nav badge lights up when cards come due |
 | Four exports | Markdown / Anki CSV / JSON (with schedule state, re-importable) / Obsidian wikilinks |
-| Backup | JSON includes the filtered cards, their review schedules and the **full text of their sources**. Clear filters to back up all cards; check the source text before sharing. Import merges by ID without overwriting existing cards. Older exports cannot restore source text they never included |
+| Backup | JSON includes the filtered cards, their review schedules and the **full text of their sources**. Clear filters to back up all cards; check the source text before sharing. Import merges by ID and card content without overwriting existing cards; colliding IDs from another library are reissued while preserving the source link. Older exports cannot restore source text they never included |
 
 On browsers with Web Locks, tabs of the same origin serialize library writes. Edits to different fields can coexist; a conflict in the same field leaves the draft in place instead of overwriting another tab. Reload old tabs after upgrading. Use one writing tab in environments without Web Locks.
 
@@ -288,7 +288,7 @@ npm run check:version   # npm manifest and lockfile, Cargo and Tauri configurati
 
 No `npm install` needed. Four fictional fixtures × 13 constraints, plus dedicated blocks for anti-padding behaviour, disclaimer preservation, text joining and boundary handling. GitHub Actions runs the same suites on every push and pull request.
 
-There is also an isolated browser suite (Node.js 20+, installed Microsoft Edge or `CHROMIUM_PATH` pointing to a Chromium executable). Run `npm ci --prefix tests/browser`, then `npm --prefix tests/browser test`. It opens two tabs in a fresh browser context, exercises concurrent saves, edit conflicts and grading, then reloads to check the persisted result.
+There is also an isolated browser suite (Node.js 20+, installed Microsoft Edge or `CHROMIUM_PATH` pointing to a Chromium executable). Run `npm ci --prefix tests/browser`, then `npm --prefix tests/browser test`. It opens two tabs in a fresh browser context, exercises concurrent saves, edit conflicts and grading, then reloads to check the persisted result; it also verifies that **Copy prompt** includes text loaded from a local file.
 
 `check:ui` catches missing element IDs, undefined CSS classes and misspelled module methods without starting a browser. It does not test real interaction. After UI changes, try generating cards from two sources, filtering and exporting one, importing it in a separate browser profile, then reviewing a restored card.
 
@@ -315,7 +315,7 @@ There is also an isolated browser suite (Node.js 20+, installed Microsoft Edge o
 | The source offers no explanation | Flagged as "not provided in the source"; semantics are left to the model via **Copy prompt**, or filled in by hand in the library |
 | Semantic-level contradictions | No caveat is emitted — the engine would rather under-report than invent a conflict |
 | Code block placement | Fenced blocks are skipped; the Skill's "code to Example, compiler errors to core knowledge" rule is executed by the model |
-| Limited browser coverage | CI exercises two-tab interactions in Edge. It is not a cross-browser visual regression suite |
+| Limited browser coverage | CI exercises two-tab and prompt interactions in Edge. It is not a cross-browser visual regression suite |
 | Review algorithm uncalibrated | Fixed-parameter SM-2 variant. Worth moving to calibrated FSRS once you have a hundred cards and real review history |
 | Chinese-only UI | The English README is here; the interface itself has no i18n yet |
 

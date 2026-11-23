@@ -20,7 +20,12 @@ const Store = (() => {
   const KEY = 'akc:v1';
   const VERSION = 1;
 
-  const EMPTY = () => ({ version: VERSION, updatedAt: 0, sources: {}, cards: {} });
+  const EMPTY = () => ({
+    version: VERSION,
+    updatedAt: 0,
+    sources: Object.create(null),
+    cards: Object.create(null)
+  });
 
   // localStorage 不可用时（file:// 协议、隐私模式、配额耗尽）退化为内存库，
   // 界面会提示「本次会话有效」，不会静默丢数据。
@@ -265,11 +270,11 @@ const Store = (() => {
   function importTable(table, prefix, label) {
     const list = Array.isArray(table);
     if (!list && !isRecord(table)) throw new Error(`备份中的${label}必须是数组或对象`);
-    const rows = {};
+    const rows = Object.create(null);
     for (const [key, item] of Object.entries(table)) {
       if (!isRecord(item)) throw new Error(`无效的${label}记录：${key}`);
       const id = item.id ?? (list ? uid(prefix) : key);
-      if (typeof id !== 'string' || !id || id in rows) {
+      if (typeof id !== 'string' || !id || Object.hasOwn(rows, id)) {
         throw new Error(`${label} ID 无效或重复：${key}`);
       }
       rows[id] = { ...item, id };
@@ -315,6 +320,25 @@ const Store = (() => {
     return Array.isArray(value) && value.every((item) => typeof item === 'string');
   }
 
+  function sameSource(a, b) {
+    return a.name === b.name && a.text === b.text &&
+      JSON.stringify(a.disclaimers || []) === JSON.stringify(b.disclaimers || []);
+  }
+
+  function sameCard(a, b) {
+    return a.sourceId === b.sourceId &&
+      (a.raw || a.core) === (b.raw || b.core) &&
+      (a.index == null || b.index == null || a.index === b.index);
+  }
+
+  function freshId(table, prefix) {
+    let id;
+    do {
+      id = uid(prefix);
+    } while (Object.hasOwn(table, id));
+    return id;
+  }
+
   /**
    * 从备份导入。
    * @param {'merge'|'replace'} mode merge 保留现有库；replace 清空后导入
@@ -325,11 +349,36 @@ const Store = (() => {
     if (mode === 'replace') {
       cache = incoming;
     } else {
-      for (const [k, v] of Object.entries(incoming.sources)) {
-        if (!db.sources[k]) db.sources[k] = v;
+      const sourceIds = new Map();
+      for (const src of Object.values(incoming.sources)) {
+        let id = src.id;
+        const direct = Object.hasOwn(db.sources, id) ? db.sources[id] : null;
+        if (direct && sameSource(direct, src)) {
+          sourceIds.set(src.id, id);
+          continue;
+        }
+        const existing = Object.values(db.sources).find((s) => sameSource(s, src));
+        if (existing) {
+          sourceIds.set(src.id, existing.id);
+          continue;
+        }
+        if (direct) id = freshId(db.sources, 's');
+        db.sources[id] = { ...src, id };
+        sourceIds.set(src.id, id);
       }
-      for (const [k, v] of Object.entries(incoming.cards)) {
-        if (!db.cards[k]) db.cards[k] = v;
+
+      for (const card of Object.values(incoming.cards)) {
+        const next = {
+          ...card,
+          sourceId: sourceIds.get(card.sourceId) ?? card.sourceId
+        };
+        const direct = Object.hasOwn(db.cards, card.id) ? db.cards[card.id] : null;
+        if ((direct && sameCard(direct, next)) ||
+            Object.values(db.cards).some((c) => sameCard(c, next))) {
+          continue;
+        }
+        const id = direct ? freshId(db.cards, 'c') : card.id;
+        db.cards[id] = { ...next, id };
       }
     }
     write();

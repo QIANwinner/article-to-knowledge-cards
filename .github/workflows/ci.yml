@@ -58,5 +58,5 @@ jobs:
       - name: 安装隔离的浏览器测试依赖
         run: npm ci --prefix tests/browser --ignore-scripts --no-audit --no-fund
 
-      - name: Edge 多标签页回归
+      - name: Edge 浏览器回归
         run: npm --prefix tests/browser test

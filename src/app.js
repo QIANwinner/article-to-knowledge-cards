@@ -457,15 +457,15 @@
     const head = [
       '用 make-knowledge-cards 把下面这份材料转成知识卡片。',
       state.sourceName
-        ? `来源文件：${state.sourceName}（请先完整读取该文件）`
+        ? `来源文件：${state.sourceName}（正文已附在下方，不需要访问原文件）`
         : '来源：下方粘贴的文本',
       '',
       PROMPT_RULES
     ].join('\n');
 
-    if (state.sourceName || !text) return head;
+    if (!text) return head;
     if (text.length > PROMPT_INLINE_LIMIT) {
-      return `${head}\n\n正文（${text.length} 字符，超过 ${PROMPT_INLINE_LIMIT}，请分批粘贴并保持编号连续）：\n${text.slice(0, PROMPT_INLINE_LIMIT)}\n……（其余部分我会继续粘贴）`;
+      return `${head}\n\n正文共 ${text.length} 字符，先附上第 1 段（前 ${PROMPT_INLINE_LIMIT} 字符）。只确认已收到并等待后续原文；全部到齐前不要开始制卡，卡片编号必须连续：\n${text.slice(0, PROMPT_INLINE_LIMIT)}\n……（其余部分我会继续粘贴）`;
     }
     return `${head}\n\n正文：\n${text}`;
   }
